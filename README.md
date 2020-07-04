@@ -100,6 +100,10 @@ It might seem quite redundant to add a sub-directory called 'goapp', the import 
 
 Similarly if you have more than one package which you'd like to be made available for external consumption, you create `lib/<other>`.
 
+## vendor
+
+I still vendor all dependencies using `go mod vendor`. vendoring is reliable and is guaranteed to not break. Though this I leave upto you to decide.
+
 ## main.go
 
 And finally the `main package`. I prefer putting the `main.go` file outside as shown here. main.go is probably going to be the ugliest package where all conventions and separation of concerns are broken. But I believe this is acceptable. The responsibility of main package is one and only one, `get things started`.
