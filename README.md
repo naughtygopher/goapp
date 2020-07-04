@@ -114,3 +114,9 @@ You can clone this repository any actually run the application, it'd start an HT
 - `/users` POST, just exists. It doesn't do much (and will panic because there's no data store provided)
 
 I've used [webgo](https://github.com/bnkamalesh/webgo) to setup the HTTP server (I guess I'm just biased).
+
+## Todo
+
+- Add sample Postgres implementation
+- Add sample Redis implementation (for cache)
+- Add APM implementation using [ELK stack](https://www.elastic.co/apm)
