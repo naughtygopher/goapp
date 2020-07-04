@@ -28,14 +28,13 @@ In my effort to try and make things easier to understand, the structure is for a
 |    |    |____stringutils
 |    |    |____datastore
 |    |
-|    |____cmd
-|         |____server
-|              |____http
-|              |    |____handlers_notes.go
-|              |    |____handlers_users.go
-|              |    |____http.go
-|              |
-|              |____grpc
+|    |____server
+|         |____http
+|         |    |____handlers_notes.go
+|         |    |____handlers_users.go
+|         |    |____http.go
+|         |
+|         |____grpc
 |
 |____docker
 |    |____Dockerfile # obviously your dockerfile
@@ -75,11 +74,7 @@ I create a function `NewService` per package, which initializes and returns the 
 
 Similar to the users package, 'notes' handles all business logic related to handling notes.
 
-## internal/cmd
-
-`cmd` is a shortform of "command". And its purpose is exactly that, it contains "commands" which are executed by the application. This is just an abstraction to group all the "non business logic" side of things like starting an HTTP server.
-
-## internal/cmd/http
+## internal/http
 
 All HTTP related configurations and functionalities are kept inside this package. 
 
@@ -110,6 +105,7 @@ I still vendor all dependencies using `go mod vendor`. vendoring is reliable and
 
 And finally the `main package`. I prefer putting the `main.go` file outside as shown here. main.go is probably going to be the ugliest package where all conventions and separation of concerns are broken. But I believe this is acceptable. The responsibility of main package is one and only one, `get things started`.
 
+`cmd` directory can be added in the root for adding multiple commands. This is usually required when there are multiple modes of interacting with the application. i.e. HTTP server, CLI application etc. In which case each usecase can be initialized and started with subpackages under `cmd`. Even though Go advocates lesser use of packages, I would give higher precedence for separation of concerns at a package level.
 
 # Note
 

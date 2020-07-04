@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/bnkamalesh/goapp/internal/api"
-	"github.com/bnkamalesh/goapp/internal/cmd/server/http"
+	"github.com/bnkamalesh/goapp/internal/server/http"
 	"github.com/bnkamalesh/goapp/internal/users"
 )
 
