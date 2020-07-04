@@ -1,3 +1,5 @@
+<p align="center"><img src="https://user-images.githubusercontent.com/1092882/86512217-bfd5a480-be1d-11ea-976c-a7c0ac0cd1f1.png" alt="goapp gopher" width="256px"/></p>
+
 # Goapp
 
 This is an opinionated guideline to structure a Go web application/service (or could be extended for any application). And my opinions formed over a span of 5+ years building web applications/services with Go.
@@ -131,3 +133,8 @@ $ go run main.go
 - Add sample Postgres implementation
 - Add sample Redis implementation (for cache)
 - Add APM implementation using [ELK stack](https://www.elastic.co/apm)
+
+
+## The gopher
+
+The gopher used here was created using [Gopherize.me](https://gopherize.me/). We build reliable, resilient, maintainable applications like this adorable gopher!
