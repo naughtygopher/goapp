@@ -111,7 +111,7 @@ And finally the `main package`. I prefer putting the `main.go` file outside as s
 
 # Note
 
-You can clone this repository any actually run the application, it'd start an HTTP server listening on port 8080 with the following routes available.
+You can clone this repository and actually run the application, it'd start an HTTP server listening on port 8080 with the following routes available.
 
 - `/` GET, the root just returns "Hello world" text response
 - `/-/health` GET, returns a JSON with some basic info. I like using this path to give out the status of the app, its dependencies etc.
