@@ -119,6 +119,13 @@ You can clone this repository and actually run the application, it'd start an HT
 
 I've used [webgo](https://github.com/bnkamalesh/webgo) to setup the HTTP server (I guess I'm just biased).
 
+How to run?
+```bash
+$ git clone https://github.com/bnkamalesh/goapp.git
+$ cd goapp
+$ go run main.go
+```
+
 ## Todo
 
 - Add sample Postgres implementation
