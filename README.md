@@ -181,10 +181,14 @@ $ cd goapp
 $ go run main.go
 ```
 
+## Something missing?
+
+If you'd like to see something added, or if you feel there's something missing here. Create an issue, or if you'd like to contribute, PRs are welcome!
+
 ## Todo
 
-- [x] Add sample Postgres implementation
-- Add sample Redis implementation (for cache)
+- [x] Add sample Postgres implementation (for persistent store)
+- [x] Add sample Redis implementation (for cache)
 - [x] Add APM implementation using [ELK stack](https://www.elastic.co/apm)
 
 

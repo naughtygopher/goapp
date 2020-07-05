@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
+	"github.com/bnkamalesh/goapp/internal/platform/cachestore"
+	"github.com/gomodule/redigo/redis"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
@@ -41,12 +44,15 @@ func (u *User) Sanitize() {
 
 // Validate is used to validate the fields of User
 func (u *User) Validate() error {
-	if u.Email != "" {
-		err := validateEmail(u.Email)
-		if err != nil {
-			return err
-		}
+	if u.Email == "" {
+		return nil
 	}
+
+	err := validateEmail(u.Email)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -55,15 +61,16 @@ func validateEmail(email string) error {
 	if len(parts) != 2 {
 		return errors.New("invalid email address provided")
 	}
+
 	return nil
 }
 
 // Users struct holds all the dependencies required for the users package. And exposes all services
 // provided by this package as its methods
 type Users struct {
-	// logger
-	// cache
-	store store
+	logHandler *log.Logger
+	cachestore userCachestore
+	store      store
 }
 
 // CreateUser creates a new user
@@ -94,22 +101,46 @@ func (us *Users) ReadByEmail(ctx context.Context, email string) (*User, error) {
 		return nil, err
 	}
 
-	u, err := us.store.ReadByEmail(ctx, email)
+	u, err := us.cachestore.ReadUserByEmail(ctx, email)
+	if err != nil && !errors.Is(err, cachestore.ErrCacheMiss) {
+		// caches are usually read-through, i.e. in case of error, just log and continue to fetch from
+		// primary datastore
+		us.logHandler.Println(err.Error())
+	} else if err == nil {
+		return u, nil
+	}
+
+	u, err = us.store.ReadByEmail(ctx, email)
 	if err != nil {
 		return nil, fmt.Errorf("store.ReadByEmail: %w", err)
 	}
+
+	err = us.cachestore.SetUser(ctx, u.Email, u)
+	if err != nil {
+		// in case of error while storing in cache, it is only logged
+		// This behaviour as well as read-through cache behaviour depends on your business logic.
+		us.logHandler.Println(err.Error())
+	}
+
 	return u, nil
 }
 
 // NewService initializes the Users struct with all its dependencies and returns a new instance
 // all dependencies of Users should be sent as arguments of NewService
-func NewService(pqdriver *pgxpool.Pool) (*Users, error) {
+func NewService(l *log.Logger, pqdriver *pgxpool.Pool, redispool *redis.Pool) (*Users, error) {
 	ustore, err := newStore(pqdriver)
 	if err != nil {
 		return nil, err
 	}
 
+	cstore, err := newCacheStore(redispool)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Users{
-		store: ustore,
+		logHandler: l,
+		cachestore: cstore,
+		store:      ustore,
 	}, nil
 }

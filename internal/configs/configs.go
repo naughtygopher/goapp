@@ -3,6 +3,7 @@ package configs
 import (
 	"time"
 
+	"github.com/bnkamalesh/goapp/internal/platform/cachestore"
 	"github.com/bnkamalesh/goapp/internal/platform/datastore"
 	"github.com/bnkamalesh/goapp/internal/server/http"
 )
@@ -39,6 +40,24 @@ func (cfg *Configs) Datastore() (*datastore.Config, error) {
 		WriteTimeout: time.Second * 5,
 		IdleTimeout:  time.Second * 60,
 		DialTimeout:  time.Second * 10,
+	}, nil
+}
+
+// Cachestore returns the configuration required for cache
+func (cfg *Configs) Cachestore() (*cachestore.Config, error) {
+	return &cachestore.Config{
+		Host: "",
+		Port: "6379",
+
+		StoreName: "0",
+		Username:  "",
+		Password:  "",
+
+		PoolSize:     8,
+		IdleTimeout:  time.Second * 5,
+		ReadTimeout:  time.Second * 5,
+		WriteTimeout: time.Second * 5,
+		DialTimeout:  time.Second * 5,
 	}, nil
 }
 

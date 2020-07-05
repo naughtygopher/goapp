@@ -17,6 +17,9 @@ github.com/elastic/go-sysinfo/providers/windows
 github.com/elastic/go-sysinfo/types
 # github.com/elastic/go-windows v1.0.0
 github.com/elastic/go-windows
+# github.com/gomodule/redigo v1.8.2
+## explicit
+github.com/gomodule/redigo/redis
 # github.com/jackc/chunkreader/v2 v2.0.1
 github.com/jackc/chunkreader/v2
 # github.com/jackc/pgconn v1.6.1
