@@ -38,6 +38,13 @@ func (h *Handlers) routes() []*webgo.Route {
 			Handlers:      []http.HandlerFunc{h.CreateUser},
 			TrailingSlash: true,
 		},
+		&webgo.Route{
+			Name:          "read-user-byemail",
+			Pattern:       "/users/:email",
+			Method:        http.MethodGet,
+			Handlers:      []http.HandlerFunc{h.ReadUserByEmail},
+			TrailingSlash: true,
+		},
 	}
 }
 

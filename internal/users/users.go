@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 // User holds all data required to represent a user
@@ -40,10 +42,18 @@ func (u *User) Sanitize() {
 // Validate is used to validate the fields of User
 func (u *User) Validate() error {
 	if u.Email != "" {
-		parts := strings.Split(u.Email, "@")
-		if len(parts) != 2 {
-			return errors.New("invalid email address provided")
+		err := validateEmail(u.Email)
+		if err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+func validateEmail(email string) error {
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		return errors.New("invalid email address provided")
 	}
 	return nil
 }
@@ -76,8 +86,30 @@ func (us *Users) CreateUser(ctx context.Context, u *User) (*User, error) {
 	return u, nil
 }
 
+// ReadByEmail returns a user which matches the given email
+func (us *Users) ReadByEmail(ctx context.Context, email string) (*User, error) {
+	email = strings.TrimSpace(email)
+	err := validateEmail(email)
+	if err != nil {
+		return nil, err
+	}
+
+	u, err := us.store.ReadByEmail(ctx, email)
+	if err != nil {
+		return nil, fmt.Errorf("store.ReadByEmail: %w", err)
+	}
+	return u, nil
+}
+
 // NewService initializes the Users struct with all its dependencies and returns a new instance
-func NewService() (*Users, error) {
-	// all dependencies of Users should be sent as arguments of NewService
-	return &Users{}, nil
+// all dependencies of Users should be sent as arguments of NewService
+func NewService(pqdriver *pgxpool.Pool) (*Users, error) {
+	ustore, err := newStore(pqdriver)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Users{
+		store: ustore,
+	}, nil
 }

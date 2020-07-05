@@ -3,16 +3,36 @@ package main
 import (
 	"log"
 	"os"
-	"time"
 
 	"github.com/bnkamalesh/goapp/internal/api"
+	"github.com/bnkamalesh/goapp/internal/configs"
+	"github.com/bnkamalesh/goapp/internal/platform/datastore"
 	"github.com/bnkamalesh/goapp/internal/server/http"
 	"github.com/bnkamalesh/goapp/internal/users"
 )
 
 func main() {
-	l := log.New(os.Stdout, "goapp", 0)
-	us, err := users.NewService()
+	l := log.New(os.Stdout, "goapp:", 0)
+
+	cfg, err := configs.NewService()
+	if err != nil {
+		l.Fatalln(err)
+		return
+	}
+
+	dscfg, err := cfg.Datastore()
+	if err != nil {
+		l.Fatalln(err)
+		return
+	}
+
+	pqdriver, err := datastore.NewService(dscfg)
+	if err != nil {
+		l.Fatalln(err)
+		return
+	}
+
+	us, err := users.NewService(pqdriver)
 	if err != nil {
 		l.Fatalln(err)
 		return
@@ -24,13 +44,14 @@ func main() {
 		return
 	}
 
+	httpCfg, err := cfg.HTTP()
+	if err != nil {
+		l.Fatalln(err)
+		return
+	}
+
 	h, err := http.NewService(
-		&http.Config{
-			Port:         "8080",
-			ReadTimeout:  time.Second * 5,
-			WriteTimeout: time.Second * 5,
-			DialTimeout:  time.Second * 3,
-		},
+		httpCfg,
 		a,
 	)
 	if err != nil {
