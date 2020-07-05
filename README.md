@@ -62,7 +62,7 @@ In my effort to try and make things easier to understand, the structure is expla
 
 ["internal" is a special directoryname in Go](https://golang.org/doc/go1.4#internalpackages), wherein any exported name/entity can only be consumed by its immediate parent.
 
-# internal/configs
+## internal/configs
 
 Creating a dedicated configs package might seem like an overkill, but it makes a lot of things easier. In the example app provided, you see the HTTP configs are hardcoded and returned. Later you decide to change to consume from env variables. All you do is update the configs package. And further down the line, maybe you decide to introduce something like [etcd](https://github.com/etcd-io/etcd), then you define the dependency in `Configs` and update the functions accordingly. This is yet another separation of concern package, to keep the `main` package a bit less ugly.
 
@@ -117,7 +117,7 @@ You can create the Dockerfile for the sample app provided, by:
 ```bash
 $ git clone https://github.com/bnkamalesh/goapp.git
 $ cd goapp
-# Update the internal/configs/configs.go with valid datastore configuration
+# Update the internal/configs/configs.go with valid datastore configuration. Or pass nil while calling user service. This would cause the app to panic when calling any API with database interaction
 # Build the Docker image
 $ docker build -t goapp -f docker/Dockerfile .
 # and you can run the image with the following command
@@ -136,11 +136,31 @@ Another advantage is, if you have more than one package which you'd like to be m
 
 I still vendor all dependencies using `go mod vendor`. vendoring is reliable and is guaranteed to not break. Chances of failure of your Go proxy for private repositories are higher compared to something going wrong with vendored packages.
 
+## schemas
+
+I maintain all the SQL schemas required by the project in this directory. This is not nested inside individual package because it's not consumed by the application at all. Also the fact that, actual consumers of the schema (developers, DB maintainers etc.) are varied. It's better to make it easier for all the audience rather than just developers.
+
 ## main.go
 
 And finally the `main package`. I prefer putting the `main.go` file outside as shown here. No non-sense, straight up `go run main.go` would start the application. 'main' is probably going to be the ugliest package where all conventions and separation of concerns are broken. But I believe this is acceptable. The responsibility of main package is one and only one, `get things started`.
 
 `cmd` directory can be added in the root for adding multiple commands. This is usually required when there are multiple modes of interacting with the application. i.e. HTTP server, CLI application etc. In which case each usecase can be initialized and started with subpackages under `cmd`. Even though Go advocates lesser use of packages, I would give higher precedence for separation of concerns at a package level.
+
+## Integrating with ELK APM
+
+I'm a fan of ELK APM when I first laid my eyes on it. The interation is super easy as well. In the sample app, you can check `internal/http/http.go:NewService` how APM is enabled. Once you have ELK APM setup, you need to provide the following configuration for it work.
+You can [refer here](https://www.elastic.co/guide/en/apm/agent/go/current/configuration.html) for details on various configurations.
+
+```bash
+$ export ELASTIC_APM_SERVER_URL=https://apm.yourdomain.com
+$ export ELASTIC_APM_SECRET_TOKEN=apmpassword
+$ export ELASTIC_APM_SERVICE_NAME=goapp
+$ export ELASTIC_APM_ENVIRONMENT=local
+$ export ELASTIC_APM_SANITIZE_FIELD_NAMES=password,repeat_password,authorization,set-cookie,cookie
+$ export ELASTIC_APM_CAPTURE_HEADERS=false
+$ export ELASTIC_APM_METRICS_INTERVAL=60s
+$ go run main.go
+```
 
 # Note
 
@@ -157,7 +177,7 @@ How to run?
 ```bash
 $ git clone https://github.com/bnkamalesh/goapp.git
 $ cd goapp
-# Update the internal/configs/configs.go with valid datastore configuration
+# Update the internal/configs/configs.go with valid datastore configuration. Or pass 'nil' while calling user service. This would cause the app to panic when calling any API with database interaction
 $ go run main.go
 ```
 
@@ -165,9 +185,9 @@ $ go run main.go
 
 - [x] Add sample Postgres implementation
 - Add sample Redis implementation (for cache)
-- Add APM implementation using [ELK stack](https://www.elastic.co/apm)
+- [x] Add APM implementation using [ELK stack](https://www.elastic.co/apm)
 
 
 ## The gopher
 
-The gopher used here was created using [Gopherize.me](https://gopherize.me/). We build reliable, resilient, maintainable applications like this adorable gopher!
+The gopher used here was created using [Gopherize.me](https://gopherize.me/). We all want to build reliable, resilient, maintainable applications like this adorable gopher!

@@ -6,4 +6,6 @@ require (
 	github.com/Masterminds/squirrel v1.4.0
 	github.com/bnkamalesh/webgo/v4 v4.1.3
 	github.com/jackc/pgx/v4 v4.7.1
+	go.elastic.co/apm v1.8.0
+	go.elastic.co/apm/module/apmhttp v1.8.0
 )

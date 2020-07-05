@@ -1,11 +1,14 @@
 package http
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/bnkamalesh/webgo/v4"
 	"github.com/bnkamalesh/webgo/v4/middleware"
+	"go.elastic.co/apm"
+	"go.elastic.co/apm/module/apmhttp"
 
 	"github.com/bnkamalesh/goapp/internal/api"
 )
@@ -66,13 +69,14 @@ func (h *Handlers) HelloWorld(w http.ResponseWriter, r *http.Request) {
 
 // HTTP struct holds all the dependencies required for starting HTTP server
 type HTTP struct {
-	router *webgo.Router
+	server *http.Server
+	cfg    *Config
 }
 
 // Start starts the HTTP server
 func (h *HTTP) Start() {
-	h.router.Use(middleware.AccessLog)
-	h.router.Start()
+	webgo.LOGHANDLER.Info("HTTP server, listening on", h.cfg.Host, h.cfg.Port)
+	h.server.ListenAndServe()
 }
 
 // Config holds all the configuration required to start the HTTP server
@@ -101,7 +105,31 @@ func NewService(cfg *Config, a *api.API) (*HTTP, error) {
 		h.routes(),
 	)
 
+	router.Use(middleware.AccessLog)
+
+	tracer, _ := apm.NewTracer(
+		"goapp",
+		"v1.1.3",
+	)
+
+	serverHandler := apmhttp.Wrap(
+		router,
+		apmhttp.WithRecovery(apmhttp.NewTraceRecovery(
+			tracer,
+		)),
+	)
+
+	httpServer := &http.Server{
+		Addr:              fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
+		Handler:           serverHandler,
+		ReadTimeout:       cfg.ReadTimeout,
+		ReadHeaderTimeout: cfg.ReadTimeout,
+		WriteTimeout:      cfg.WriteTimeout,
+		IdleTimeout:       cfg.ReadTimeout * 2,
+	}
+
 	return &HTTP{
-		router: router,
+		server: httpServer,
+		cfg:    cfg,
 	}, nil
 }

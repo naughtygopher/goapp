@@ -1,0 +1,18 @@
+language: go
+go:
+  # webgo is still compatible with 1.8, but the tests are importing versioned 
+  # modules which fails for older Go versions
+  # - "1.8"
+  - "1.11"
+  - master
+
+before_install:
+  - go get -t -v ./...
+
+script:
+  # go.mod is overwritten to avoid go version being part of the mod file, which fails tests on mismatching version
+  - echo "module github.com/bnkamalesh/webgo/v4" > go.mod
+  - go test -coverprofile=coverage.txt -covermode=atomic $(go list ./... | grep -v /cmd)
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
