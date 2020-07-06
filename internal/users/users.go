@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
 	"github.com/bnkamalesh/goapp/internal/platform/cachestore"
+	"github.com/bnkamalesh/goapp/internal/platform/logger"
 	"github.com/gomodule/redigo/redis"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
@@ -68,7 +68,7 @@ func validateEmail(email string) error {
 // Users struct holds all the dependencies required for the users package. And exposes all services
 // provided by this package as its methods
 type Users struct {
-	logHandler *log.Logger
+	logHandler logger.Logger
 	cachestore userCachestore
 	store      store
 }
@@ -105,7 +105,7 @@ func (us *Users) ReadByEmail(ctx context.Context, email string) (*User, error) {
 	if err != nil && !errors.Is(err, cachestore.ErrCacheMiss) {
 		// caches are usually read-through, i.e. in case of error, just log and continue to fetch from
 		// primary datastore
-		us.logHandler.Println(err.Error())
+		us.logHandler.Error(err.Error())
 	} else if err == nil {
 		return u, nil
 	}
@@ -119,7 +119,7 @@ func (us *Users) ReadByEmail(ctx context.Context, email string) (*User, error) {
 	if err != nil {
 		// in case of error while storing in cache, it is only logged
 		// This behaviour as well as read-through cache behaviour depends on your business logic.
-		us.logHandler.Println(err.Error())
+		us.logHandler.Error(err.Error())
 	}
 
 	return u, nil
@@ -127,7 +127,7 @@ func (us *Users) ReadByEmail(ctx context.Context, email string) (*User, error) {
 
 // NewService initializes the Users struct with all its dependencies and returns a new instance
 // all dependencies of Users should be sent as arguments of NewService
-func NewService(l *log.Logger, pqdriver *pgxpool.Pool, redispool *redis.Pool) (*Users, error) {
+func NewService(l logger.Logger, pqdriver *pgxpool.Pool, redispool *redis.Pool) (*Users, error) {
 	ustore, err := newStore(pqdriver)
 	if err != nil {
 		return nil, err

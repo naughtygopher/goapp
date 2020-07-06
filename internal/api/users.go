@@ -10,7 +10,7 @@ import (
 func (a *API) CreateUser(ctx context.Context, u *users.User) (*users.User, error) {
 	u, err := a.users.CreateUser(ctx, u)
 	if err != nil {
-		a.logger.Println(err)
+		a.logger.Error(err)
 		return nil, err
 	}
 
@@ -21,7 +21,7 @@ func (a *API) CreateUser(ctx context.Context, u *users.User) (*users.User, error
 func (a *API) ReadUserByEmail(ctx context.Context, email string) (*users.User, error) {
 	u, err := a.users.ReadByEmail(ctx, email)
 	if err != nil {
-		a.logger.Println(err)
+		a.logger.Error(err)
 		return nil, err
 	}
 

@@ -1,5 +1,8 @@
 <p align="center"><img src="https://user-images.githubusercontent.com/1092882/86512217-bfd5a480-be1d-11ea-976c-a7c0ac0cd1f1.png" alt="goapp gopher" width="256px"/></p>
 
+[![](https://godoc.org/github.com/nathany/looper?status.svg)](http://godoc.org/github.com/bnkamalesh/goapp)
+[![Maintainability](https://api.codeclimate.com/v1/badges/acd31bcdc1a4d668ebf4/maintainability)](https://codeclimate.com/github/bnkamalesh/goapp/maintainability)
+
 # Goapp
 
 This is an opinionated guideline to structure a Go web application/service (or could be extended for any application). And my opinions formed over a span of 5+ years building web applications/services with Go. Even though I've mentioned `go.mod` and `go.sum`, this guideline works for 1.4+ (i.e. since introduction of 'internal' special directory).
@@ -7,6 +10,27 @@ This is an opinionated guideline to structure a Go web application/service (or c
 P.S: This guideline is not directly applicable for an independent package, as their primary use is to be consumed in other applications. In such cases, having most or all of the package in the root is probably the best way of doing it. And that is where Go's recommendation of "no unnecessary sub packages" comes into play.
 
 In my effort to try and make things easier to understand, the structure is explained based on an imaginary note taking web application.
+
+## Table of contents
+
+1. [Directory structure](#directory-structure)
+2. [Configs package](#internalconfigs)
+3. [API package](#internalapi)
+4. [Users](#internalusers) (would be common for all such business logic units) package. In this case the notes package
+5. [Platform package](#internalplatform)
+    - 5.1. [datastore](#internalplatformdatastore)
+    - 5.2. [logger](#internalplatformlogger)
+7. [HTTP server](#internalhttp)
+    - 7.1. [templates](#internalhttptemplates)
+8. [lib](#lib)
+9. [vendor](#vendor)
+10. [schemas](#schemas)
+11. [main.go](#maingo)
+12. [Integrating with ELK APM](#integrating-with-elk-apm)
+13. [Note](#note)
+
+
+## Directory structure
 
 ```bash
 |
@@ -92,7 +116,27 @@ Platform package contains all the packages which are to be consumed across multi
 
 The datastore package initializes `pgxpool.Pool` and returns a new instance. I'm using Postgres as the datastore in this sample app.
 
-## internal/http
+### internal/platform/logger
+
+I usually define the logging interface as well as the package in a private package (internal to your company), and is used across all services. Logging interface helps you easily switch between different logging libraries, as all your apps would use the interface you defined (interface segregation principle of SOLID). But here I'm making it part of the application itself as it has fewer chances of going wrong when trying to cater to a larger audience.
+
+**Logging might sound trivial but there are a few questions around it:**
+
+1. Should it be made a dependency of all packages, or can it be global?
+
+Logging just like any other dependency, is a dependency. And in most cases it's better to write packages (code in general) which have as few dependencies as practically possible. This is a general principle, fewer dependencies make a lot of things easier like maintainability, testing, porting, moving the code around, etc. And creating singleton Globals bring in restrictions, also it's a dependency nevertheless. Global instances have another issue, it doesn't give you flexibility when you need varying functionality across different packages (since it's global, it's common for all consumers). So in my opinion, it's better not to use it as a global.
+
+2. Where would you do it? Should you bubble up errors and log at the parent level, or right where the error occurs?
+
+Keeping it at the root/outermost layer helps make things easier because you only need to worry about injecting logging dependency only in this package. And easier to controls it in general. i.e. One less thing to worry about in majority of the code.
+
+For developers, while troubleshooting (which is one of the foremost requirement for logging), the line number along with filename helps a lot. Then it's obvious, log where the error occurs, right?
+
+Over the course of time, I found it's not really obvious. The more nested function calls you have, higher the chances of redundant logging. And setting up guidelines for your developers to only log at the origin of error is also not easy. A lot of developers get confused which level should be considered the origin (especially when there's deep nesting fn1 -> fn2 -> fn3 -> fn4). Thus I prefer logging at the API layer (and not handlers). But with exceptions.
+
+Consider the case of `internal/users` package. I'm making use of cache, but it's a read-through cache. So even if there's a miss in cache or cache store is down altogether, the system should still work. But then how do you find out if your cache is down where there's no logs? And hence you see the logger made a dependency of users package.
+
+## internal/server/http
 
 All HTTP related configurations and functionalities are kept inside this package. The naming convention followed for filenames, is also straightforward. i.e. all the HTTP handlers of a specific package/domain are grouped under `handlers_<business logic unit name>.go`. 
 
@@ -100,7 +144,7 @@ e.g. handlers_users.go. The advantage of naming this way is, it's easier for dev
 
 <p align="center"><img src="https://user-images.githubusercontent.com/1092882/86526182-24d8db00-beae-11ea-9681-0a31b2d67e1b.png" alt="handlers_users.go" width="512px"/></p>
 
-### internal/http/templates
+### internal/server/http/templates
 
 All HTML templates required for the application are to be put here. Sub directories based on the main business logic unit, e.g. users, can be created. It is highly unlikely that HTML templates used for HTTP responses are reused elsewhere in the application. Hence it justifies its location within 'server/http'.
 
@@ -148,7 +192,7 @@ And finally the `main package`. I prefer putting the `main.go` file outside as s
 
 ## Integrating with ELK APM
 
-I'm a fan of ELK APM when I first laid my eyes on it. The interation is super easy as well. In the sample app, you can check `internal/http/http.go:NewService` how APM is enabled. Once you have ELK APM setup, you need to provide the following configuration for it work.
+I'm a fan of ELK APM when I first laid my eyes on it. The interation is super easy as well. In the sample app, you can check `internal/server/http.go:NewService` how APM is enabled. Once you have ELK APM setup, you need to provide the following configuration for it work.
 You can [refer here](https://www.elastic.co/guide/en/apm/agent/go/current/configuration.html) for details on various configurations.
 
 ```bash
@@ -190,6 +234,8 @@ If you'd like to see something added, or if you feel there's something missing h
 - [x] Add sample Postgres implementation (for persistent store)
 - [x] Add sample Redis implementation (for cache)
 - [x] Add APM implementation using [ELK stack](https://www.elastic.co/apm)
+- [x] Logging
+- [ ] Application and request context
 
 
 ## The gopher
