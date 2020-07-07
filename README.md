@@ -16,7 +16,7 @@ In my effort to try and make things easier to understand, the structure is expla
 1. [Directory structure](#directory-structure)
 2. [Configs package](#internalconfigs)
 3. [API package](#internalapi)
-4. [Users](#internalusers) (would be common for all such business logic units) package. In this case the notes package
+4. [Users](#internalusers) (would be common for all such business logic units, 'notes' being similar to Users) package.
 5. [Platform package](#internalplatform)
     - 5.1. [datastore](#internalplatformdatastore)
     - 5.2. [logger](#internalplatformlogger)
@@ -24,10 +24,11 @@ In my effort to try and make things easier to understand, the structure is expla
     - 7.1. [templates](#internalhttptemplates)
 8. [lib](#lib)
 9. [vendor](#vendor)
-10. [schemas](#schemas)
-11. [main.go](#maingo)
-12. [Integrating with ELK APM](#integrating-with-elk-apm)
-13. [Note](#note)
+10. [docker](#docker)
+11. [schemas](#schemas)
+12. [main.go](#maingo)
+13. [Integrating with ELK APM](#integrating-with-elk-apm)
+14. [Note](#note)
 
 
 ## Directory structure
@@ -40,11 +41,12 @@ In my effort to try and make things easier to understand, the structure is expla
 |    |    |____configs.go
 |    |
 |    |____api
-|    |    |____note.go
+|    |    |____notes.go
 |    |    |____users.go
 |    |
 |    |____users
 |    |    |____store.go
+|    |    |____cache.go
 |    |    |____users.go
 |    |
 |    |____notes
@@ -53,7 +55,11 @@ In my effort to try and make things easier to understand, the structure is expla
 |    |____platform
 |    |    |____stringutils
 |    |    |____datastore
-|    |         |____datastore.go
+|    |    |     |____datastore.go
+|    |    |____cachestore
+|    |    |    |____cachestore.go
+|    |    |____logger
+|    |         |____logger.go
 |    |
 |    |____server
 |         |____http
@@ -63,15 +69,14 @@ In my effort to try and make things easier to understand, the structure is expla
 |         |
 |         |____grpc
 |
-|____docker
-|    |____Dockerfile # obviously your dockerfile
-|
 |____lib
 |    |____notes
 |         |____notes.go
 |
-|
 |____vendor
+|
+|____docker
+|    |____Dockerfile # obviously your 'default' dockerfile
 |
 |____go.mod
 |____go.sum
@@ -114,27 +119,34 @@ Platform package contains all the packages which are to be consumed across multi
 
 ### internal/platform/datastore
 
-The datastore package initializes `pgxpool.Pool` and returns a new instance. I'm using Postgres as the datastore in this sample app.
+The datastore package initializes `pgxpool.Pool` and returns a new instance. I'm using Postgres as the datastore in this sample app. Why create such a package? I for instance had to because the packages we are using for Postgres did not have readymade APM integration. So started off by writing methods which we use in the app (and not 100% mirroring of the library), with APM integration. Did the same for cachestore as well. And it gets us beautiful insights like the following:
+
+<p align="center">
+<img src="https://user-images.githubusercontent.com/1092882/86710556-baa07180-c038-11ea-8924-3b4d61db1476.png" alt="APM overall" width="384px" height="256px" style="margin-right: 16px" />
+<img src="https://user-images.githubusercontent.com/1092882/86710547-b83e1780-c038-11ea-9829-b5585b3d599b.png" alt="APM 1 API" width="384px" height="256px" />
+</p>
+
+P.S: Similar to logger, we made these independent private packages hosted in our [VCS](https://en.wikipedia.org/wiki/Version_control).
 
 ### internal/platform/logger
 
-I usually define the logging interface as well as the package in a private package (internal to your company), and is used across all services. Logging interface helps you easily switch between different logging libraries, as all your apps would use the interface you defined (interface segregation principle of SOLID). But here I'm making it part of the application itself as it has fewer chances of going wrong when trying to cater to a larger audience.
+I usually define the logging interface as well as the package, in a private repository (internal to your company e.g. vcs.yourcompany.io/gopkgs/logger), and is used across all services. Logging interface helps you to easily switch between different logging libraries, as all your apps would be using the interface you defined (interface segregation principle from SOLID). But here I'm making it part of the application itself as it has fewer chances of going wrong when trying to cater to a larger audience.
 
 **Logging might sound trivial but there are a few questions around it:**
 
 1. Should it be made a dependency of all packages, or can it be global?
 
-Logging just like any other dependency, is a dependency. And in most cases it's better to write packages (code in general) which have as few dependencies as practically possible. This is a general principle, fewer dependencies make a lot of things easier like maintainability, testing, porting, moving the code around, etc. And creating singleton Globals bring in restrictions, also it's a dependency nevertheless. Global instances have another issue, it doesn't give you flexibility when you need varying functionality across different packages (since it's global, it's common for all consumers). So in my opinion, it's better not to use it as a global.
+Logging just like any other dependency, is a dependency. And in most cases it's better to write packages (code in general) which have as few dependencies as practically possible. This is a general principle, fewer dependencies make a lot of things easier like maintainability, testing, porting, moving the code around, etc. And creating singleton Globals bring in restrictions, also it's a dependency nevertheless. Global instances have another issue, it doesn't give you flexibility when you need varying functionality across different packages (since it's global, it's common for all consumers). So in my opinion, it's better not to use it as a global either.
 
-2. Where would you do it? Should you bubble up errors and log at the parent level, or right where the error occurs?
+2. Where would you do it? Should you bubble up errors and log at the parent level, or write where the error occurs?
 
 Keeping it at the root/outermost layer helps make things easier because you only need to worry about injecting logging dependency only in this package. And easier to controls it in general. i.e. One less thing to worry about in majority of the code.
 
-For developers, while troubleshooting (which is one of the foremost requirement for logging), the line number along with filename helps a lot. Then it's obvious, log where the error occurs, right?
+For developers, while troubleshooting (which is one of the foremost need for logging), the line number along with filename helps a lot. Then it's obvious, log where the error occurs, right?
 
-Over the course of time, I found it's not really obvious. The more nested function calls you have, higher the chances of redundant logging. And setting up guidelines for your developers to only log at the origin of error is also not easy. A lot of developers get confused which level should be considered the origin (especially when there's deep nesting fn1 -> fn2 -> fn3 -> fn4). Thus I prefer logging at the API layer (and not handlers). But with exceptions.
+Over the course of time, I found it's not really obvious. The more nested function calls you have, higher the chances of redundant logging. And setting up guidelines for your developers to only log at the origin of error is also not easy. A lot of developers get confused which level should be considered the origin (especially when there's deep nesting fn1 -> fn2 -> fn3 -> fn4). Thus I prefer logging at the API layer (and not handlers), [with annotated errors](https://golang.org/pkg/errors/)(using the '%w' verb in `fmt.Errorf`) to trace its origin. But with exceptions.
 
-Consider the case of `internal/users` package. I'm making use of cache, but it's a read-through cache. So even if there's a miss in cache or cache store is down altogether, the system should still work. But then how do you find out if your cache is down where there's no logs? And hence you see the logger made a dependency of users package.
+Consider the case of `internal/users` package. I'm making use of cache, but it's a read-through cache. So even if there's a miss in cache or cache store is down altogether, the system should still work. But then how do you find out if your cache is down when there's no logs? Hence you see the logger being made a dependency of users package.
 
 ## internal/server/http
 
@@ -150,24 +162,6 @@ All HTML templates required for the application are to be put here. Sub director
 
 Ideally the template is executed in HTTP handlers, and never used anywhere outside the 'server/http' package.
 
-## docker
-
-I've been a fan of Docker since a few years now. I like keeping a dedicated folder for Dockerfile in anticipation of introducing multiple Docker files or other files required for Docker image build.
-
-e.g. [Dockerfile for Alpine as well as Debian](https://github.com/bnkamalesh/golang-dockerfile)
-
-You can create the Dockerfile for the sample app provided, by:
-
-```bash
-$ git clone https://github.com/bnkamalesh/goapp.git
-$ cd goapp
-# Update the internal/configs/configs.go with valid datastore configuration. Or pass nil while calling user service. This would cause the app to panic when calling any API with database interaction
-# Build the Docker image
-$ docker build -t goapp -f docker/Dockerfile .
-# and you can run the image with the following command
-$ docker run -p 8080:8080 --rm -ti goapp
-```
-
 ## lib
 
 This name is quite explicit and if you notice, it's outside of the special 'internal' directory. So within this directory, is meant for consumption in external projects. 
@@ -179,6 +173,24 @@ Another advantage is, if you have more than one package which you'd like to be m
 ## vendor
 
 I still vendor all dependencies using `go mod vendor`. vendoring is reliable and is guaranteed to not break. Chances of failure of your Go proxy for private repositories are higher compared to something going wrong with vendored packages.
+
+## docker
+
+I've been a fan of Docker since a few years now. I like keeping a dedicated folder for Dockerfile, in anticipation of introducing multiple Docker files or other files required for Docker image build.
+
+e.g. [Dockerfiles for Alpine & Debian based images](https://github.com/bnkamalesh/golang-dockerfile)
+
+You can create the Docker image for the sample app provided:
+
+```bash
+$ git clone https://github.com/bnkamalesh/goapp.git
+$ cd goapp
+# Update the internal/configs/configs.go with valid datastore configuration. Or pass nil while calling user service. This would cause the app to panic when calling any API with database interaction
+# Build the Docker image
+$ docker build -t goapp -f docker/Dockerfile .
+# and you can run the image with the following command
+$ docker run -p 8080:8080 --rm -ti goapp
+```
 
 ## schemas
 
@@ -235,6 +247,7 @@ If you'd like to see something added, or if you feel there's something missing h
 - [x] Add sample Redis implementation (for cache)
 - [x] Add APM implementation using [ELK stack](https://www.elastic.co/apm)
 - [x] Logging
+- [ ] Error handling
 - [ ] Application and request context
 
 
