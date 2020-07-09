@@ -129,6 +129,12 @@ Though in a lot of cases there are database functionalities which we use to impl
 
 Here comes my differentiator, at this point where you're testing individual package's datastore interaction, I'd rather you directly start testing the API. APIs would cover all the layers, API, business logic, datastore interaction etc. These tests can be built and deployed using external API testing frameworks (i.e. independent of your code). So my approach is a hybrid one, unit tests for all possible pure functions, and API test for the rest. And when it comes to API testing, your aim should be to try and "break the application". i.e. don't just cover happy paths. The lazier you are, more pure functions you will have(rather write unit tests than create API tests on yet another tool)!
 
+P.S: I use [VSCode](https://code.visualstudio.com/) and it lets you auto [generate unit tests](https://code.visualstudio.com/docs/languages/go#_test). I'm positive other IDEs also have similar functionality. You could just right-click on the function and choose `Go: Generate unit tests for function`.
+
+<p align="center">
+<img src="https://user-images.githubusercontent.com/1092882/87034896-2be14f80-c206-11ea-8771-edabfffab39d.png" alt="generate unit test" width="384px" height="256px" style="margin-right: 16px" />
+</p>
+
 ## internal/notes
 
 Similar to the users package, 'notes' handles all business logic related to 'notes'.
