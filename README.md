@@ -2,6 +2,7 @@
 
 [![](https://godoc.org/github.com/nathany/looper?status.svg)](http://godoc.org/github.com/bnkamalesh/goapp)
 [![Maintainability](https://api.codeclimate.com/v1/badges/acd31bcdc1a4d668ebf4/maintainability)](https://codeclimate.com/github/bnkamalesh/goapp/maintainability)
+[![Go Report Card](https://goreportcard.com/badge/github.com/bnkamalesh/goapp)](https://goreportcard.com/report/github.com/bnkamalesh/goapp)
 
 # Goapp
 
@@ -17,9 +18,10 @@ In my effort to try and make things easier to understand, the structure is expla
 2. [Configs package](#internalconfigs)
 3. [API package](#internalapi)
 4. [Users](#internalusers) (would be common for all such business logic units, 'notes' being similar to Users) package.
-5. [Platform package](#internalplatform)
-    - 5.1. [datastore](#internalplatformdatastore)
-    - 5.2. [logger](#internalplatformlogger)
+5. [Testing](#internalusers_test)
+6. [Platform package](#internalplatform)
+    - 6.1. [datastore](#internalplatformdatastore)
+    - 6.2. [logger](#internalplatformlogger)
 7. [HTTP server](#internalhttp)
     - 7.1. [templates](#internalhttptemplates)
 8. [lib](#lib)
@@ -48,6 +50,7 @@ In my effort to try and make things easier to understand, the structure is expla
 |    |    |____store.go
 |    |    |____cache.go
 |    |    |____users.go
+|    |    |____users_test.go
 |    |
 |    |____notes
 |    |    |____notes.go
@@ -108,6 +111,23 @@ Users package is where all your actual user related business logic is implemente
 There's a `store.go` in this package which is where you write all the direct interactions with the datastore. There's an interface which is unique to the `users` package. Such an interface is introduced to handle dependency injection as well as dependency inversion elegantly. File naming convention for store files is `store_<logical group>.go`. e.g. `store_aggregations.go`. 
 
 `NewService` function is created in each package, which initializes and returns the respective package's handler. In case of users package, there's a `Users` struct. The name 'NewService' makes sense in most cases, and just reduces the burden of thinking of a good name for such scenarios. The Users struct here holds all the dependencies required for implementing features provided by users package.
+
+## internal/users_test
+
+There's quite a lot of debate about 100% test coverage or not. 100% coverage sounds very nice, but might not be practical all the time or at times not even possible. What I like doing is, writing unit test for your core business logic, in this case 'Sanitize', 'Validate' etc are my business logic. And I've seen developers opting for the "easy way out" when writing unit tests as well. For instance `TestUser_Sanitize` test, you see that I'm repeating the exact same code as the Sanitize function and then comparing 2 instances. But I've seen developers do something like, create the "trimmed" instance by assigning individual fields from 'u', call Sanitize on trimmed and then compare (and some other variations which makes the test unreliable). My observation is that it happens primarily because of 2 reasons:
+
+1. Some developers are lazy that they don't want to write the exact body of the function within the test
+    - only way I know of how to solve this, if a unit test "saves the day" for some buggy code they write. (at least that's how I changed)
+2. Some developers don't understand unit tests
+    - in this case we need to inform the developer of what exactly is the purpose of unit tests. The sole purpose of unit test is ironically "test the purpose of the unit/function". It is *_not_* to check the implementation, how it's done, how much time it took, how efficient it is etc. The sole purpose is "what id does?". This is why you see a lot of unit tests will have hardcoded values, because those values are reliable human input
+
+Once you develop the habit of writing unit tests for [pure functions](https://en.wikipedia.org/wiki/Pure_function) and get the hang of it. You automatically start breaking down big functions into smaller *_testable_* functions (this is the best outcome we'd love to have). When you _layer_ your application, datastore is ideally just a utility, and if you can implement your business logic with such pure functions alone, not dependent on such utlities, that'd be perfect!
+
+Though in a lot of cases there are database functionalities which we use to implement business logic. e.g. the beautiful SQL Joins. People throw a lot of dirt at joins, but I love them! Joins are awesome. Let me not digress, you should be writing integration tests for these. There are 2 camps here as well, mocks vs real databases. I prefer real database, to stay as close as possible to the real deal (i.e. production deployment), so it should be the same version of database. I have a unit testing database setup (with no tables), and credentials with all access made available as part of CI/CD config. 
+
+### conclusion
+
+Here comes my differentiator, at this point where you're testing individual package's datastore interaction, I'd rather you directly start testing the API. APIs would cover all the layers, API, business logic, datastore interaction etc. These tests can be built and deployed using external API testing frameworks (i.e. independent of your code). So my approach is a hybrid one, unit tests for all possible pure functions, and API test for the rest. And when it comes to API testing, your aim should be to try and "break the application". i.e. don't just cover happy paths. The lazier you are, more pure functions you will have(rather write unit tests than create API tests on yet another tool)!
 
 ## internal/notes
 
@@ -247,6 +267,7 @@ If you'd like to see something added, or if you feel there's something missing h
 - [x] Add sample Redis implementation (for cache)
 - [x] Add APM implementation using [ELK stack](https://www.elastic.co/apm)
 - [x] Logging
+- [x] Testing
 - [ ] Error handling
 - [ ] Application and request context
 
