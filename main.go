@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	l := logger.New("goapp", "v1.0.0")
+	l := logger.New("goapp", "v1.0.0", 1)
 
 	cfg, err := configs.NewService()
 	if err != nil {
