@@ -3,6 +3,8 @@
 [![](https://godoc.org/github.com/nathany/looper?status.svg)](http://godoc.org/github.com/bnkamalesh/goapp)
 [![Maintainability](https://api.codeclimate.com/v1/badges/acd31bcdc1a4d668ebf4/maintainability)](https://codeclimate.com/github/bnkamalesh/goapp/maintainability)
 [![Go Report Card](https://goreportcard.com/badge/github.com/bnkamalesh/goapp)](https://goreportcard.com/report/github.com/bnkamalesh/goapp)
+[![Build Status](https://travis-ci.org/bnkamalesh/goapp.svg?branch=master)](https://travis-ci.org/bnkamalesh/goapp)
+[![codecov](https://codecov.io/gh/bnkamalesh/goapp/branch/master/graph/badge.svg)](https://codecov.io/gh/bnkamalesh/goapp)
 
 # Goapp
 
