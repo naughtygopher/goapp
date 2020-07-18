@@ -1,17 +1,17 @@
 package cachestore
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
+	"github.com/bnkamalesh/errors"
 	"github.com/gomodule/redigo/redis"
 )
 
 var (
 	// ErrCacheMiss is the error returned when the requested item is not available in cache
-	ErrCacheMiss = errors.New("not found in cache")
+	ErrCacheMiss = errors.NotFound("not found in cache")
 	// ErrCacheNotInitialized is the error returned when the cache handler is not initialized
 	ErrCacheNotInitialized = errors.New("not initialized")
 )

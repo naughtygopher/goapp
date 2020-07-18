@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/Masterminds/squirrel v1.4.0
+	github.com/bnkamalesh/errors v0.1.8
 	github.com/bnkamalesh/webgo/v4 v4.1.3
 	github.com/gomodule/redigo v1.8.2
 	github.com/jackc/pgx/v4 v4.7.1

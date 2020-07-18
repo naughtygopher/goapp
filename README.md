@@ -1,11 +1,11 @@
 <p align="center"><img src="https://user-images.githubusercontent.com/1092882/86512217-bfd5a480-be1d-11ea-976c-a7c0ac0cd1f1.png" alt="goapp gopher" width="256px"/></p>
 
-[![](https://godoc.org/github.com/nathany/looper?status.svg)](http://godoc.org/github.com/bnkamalesh/goapp)
-[![Maintainability](https://api.codeclimate.com/v1/badges/acd31bcdc1a4d668ebf4/maintainability)](https://codeclimate.com/github/bnkamalesh/goapp/maintainability)
-[![Go Report Card](https://goreportcard.com/badge/github.com/bnkamalesh/goapp)](https://goreportcard.com/report/github.com/bnkamalesh/goapp)
 [![Build Status](https://travis-ci.org/bnkamalesh/goapp.svg?branch=master)](https://travis-ci.org/bnkamalesh/goapp)
 [![codecov](https://codecov.io/gh/bnkamalesh/goapp/branch/master/graph/badge.svg)](https://codecov.io/gh/bnkamalesh/goapp)
-
+[![Go Report Card](https://goreportcard.com/badge/github.com/bnkamalesh/goapp)](https://goreportcard.com/report/github.com/bnkamalesh/goapp)
+[![Maintainability](https://api.codeclimate.com/v1/badges/acd31bcdc1a4d668ebf4/maintainability)](https://codeclimate.com/github/bnkamalesh/goapp/maintainability)
+[![](https://godoc.org/github.com/nathany/looper?status.svg)](http://godoc.org/github.com/bnkamalesh/goapp)
+[![](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#tutorials)
 # Goapp
 
 This is an opinionated guideline to structure a Go web application/service (or could be extended for any application). And my opinions formed over a span of 5+ years building web applications/services with Go. Even though I've mentioned `go.mod` and `go.sum`, this guideline works for 1.4+ (i.e. since introduction of 'internal' special directory).
@@ -246,6 +246,10 @@ $ export ELASTIC_APM_METRICS_INTERVAL=60s
 $ go run main.go
 ```
 
+## Error handling
+
+After years of trying different approaches, I finally caved and a created custom [error handling package](https://github.com/bnkamalesh/errors) to make troubleshooting and responding to APIs easier, p.s: it's a drop-in replacement for Go builtin errors. More often than not, we log full details of errors and then respond to the API with a cleaner/friendly message. If you end-up using the [errors](https://github.com/bnkamalesh/errors) package, there's only one thing to follow. Any error returned by an external (external to the project) should be wrapped using the respective helper method. e.g. `errors.InternalErr(err, "<user friendly message>")` where err is the original error returned by the external package. If not using the custom error package, then you would have to annotate all the errors with relevant context info. e.g. `fmt.Errorf("<more info> %w", err)`. Though if you're annotating errors all the way, the user response has still to be handled separately. In this case, HTTP status code and the custom messages are better handled in the handlers layer.
+
 # Note
 
 You can clone this repository and actually run the application, it'd start an HTTP server listening on port 8080 with the following routes available.
@@ -261,7 +265,7 @@ How to run?
 ```bash
 $ git clone https://github.com/bnkamalesh/goapp.git
 $ cd goapp
-# Update the internal/configs/configs.go with valid datastore configuration. Or pass 'nil' while calling user service. This would cause the app to panic when calling any API with database interaction
+# Update the internal/configs/configs.go with valid datastore configuration. Or pass 'nil' while calling user service. The app wouldn't start if no valid configuration is provided.
 $ go run main.go
 ```
 
@@ -276,7 +280,7 @@ If you'd like to see something added, or if you feel there's something missing h
 - [x] Add APM implementation using [ELK stack](https://www.elastic.co/apm)
 - [x] Logging
 - [x] Testing
-- [ ] Error handling
+- [x] Error handling
 - [ ] Application and request context
 
 

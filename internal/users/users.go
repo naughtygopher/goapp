@@ -2,15 +2,15 @@ package users
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"strings"
 	"time"
 
-	"github.com/bnkamalesh/goapp/internal/platform/cachestore"
-	"github.com/bnkamalesh/goapp/internal/platform/logger"
+	"github.com/bnkamalesh/errors"
 	"github.com/gomodule/redigo/redis"
 	"github.com/jackc/pgx/v4/pgxpool"
+
+	"github.com/bnkamalesh/goapp/internal/platform/cachestore"
+	"github.com/bnkamalesh/goapp/internal/platform/logger"
 )
 
 // User holds all data required to represent a user
@@ -59,7 +59,7 @@ func (u *User) Validate() error {
 func validateEmail(email string) error {
 	parts := strings.Split(email, "@")
 	if len(parts) != 2 {
-		return errors.New("invalid email address provided")
+		return errors.Validation("invalid email address provided")
 	}
 
 	return nil
@@ -80,14 +80,12 @@ func (us *Users) CreateUser(ctx context.Context, u *User) (*User, error) {
 
 	err := u.Validate()
 	if err != nil {
-		// this wrapping helps identify where the error originated when logging at a higher level
-		// e.g. if logging is done at `api` package
-		return nil, fmt.Errorf("Validate: %w", err)
+		return nil, err
 	}
 
 	err = us.store.Create(ctx, u)
 	if err != nil {
-		return nil, fmt.Errorf("store.Create: %w", err)
+		return nil, err
 	}
 
 	return u, nil
@@ -102,7 +100,9 @@ func (us *Users) ReadByEmail(ctx context.Context, email string) (*User, error) {
 	}
 
 	u, err := us.cachestore.ReadUserByEmail(ctx, email)
-	if err != nil && !errors.Is(err, cachestore.ErrCacheMiss) {
+	if err != nil &&
+		!errors.Is(err, cachestore.ErrCacheMiss) &&
+		!errors.Is(err, cachestore.ErrCacheNotInitialized) {
 		// caches are usually read-through, i.e. in case of error, just log and continue to fetch from
 		// primary datastore
 		us.logHandler.Error(err.Error())
@@ -112,7 +112,7 @@ func (us *Users) ReadByEmail(ctx context.Context, email string) (*User, error) {
 
 	u, err = us.store.ReadByEmail(ctx, email)
 	if err != nil {
-		return nil, fmt.Errorf("store.ReadByEmail: %w", err)
+		return nil, err
 	}
 
 	err = us.cachestore.SetUser(ctx, u.Email, u)

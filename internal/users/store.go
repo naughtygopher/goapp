@@ -3,9 +3,9 @@ package users
 import (
 	"context"
 	"database/sql"
-	"fmt"
 
 	"github.com/Masterminds/squirrel"
+	"github.com/bnkamalesh/errors"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
@@ -30,12 +30,12 @@ func (us *userStore) Create(ctx context.Context, u *User) error {
 		"updatedAt": u.UpdatedAt,
 	}).ToSql()
 	if err != nil {
-		return fmt.Errorf("ToSQL: %w", err)
+		return errors.InternalErr(err, errors.DefaultMessage)
 	}
 
 	_, err = us.pqdriver.Exec(ctx, query, args...)
 	if err != nil {
-		return fmt.Errorf("Exec: %w", err)
+		return errors.InternalErr(err, errors.DefaultMessage)
 	}
 
 	return nil
@@ -57,7 +57,7 @@ func (us *userStore) ReadByEmail(ctx context.Context, email string) (*User, erro
 		},
 	).ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("ToSQL: %w", err)
+		return nil, errors.InternalErr(err, errors.DefaultMessage)
 	}
 
 	user := new(User)
@@ -76,7 +76,7 @@ func (us *userStore) ReadByEmail(ctx context.Context, email string) (*User, erro
 		&user.UpdatedAt,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("row.Scan: %w", err)
+		return nil, errors.InternalErr(err, errors.DefaultMessage)
 	}
 
 	user.FirstName = firstName.String

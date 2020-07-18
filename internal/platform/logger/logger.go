@@ -6,7 +6,6 @@ package logger
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"runtime"
 	"time"
@@ -33,7 +32,6 @@ type Logger interface {
 
 // LogHandler implements Logger
 type LogHandler struct {
-	l          *log.Logger
 	Skipstack  int
 	appName    string
 	appVersion string
@@ -73,11 +71,11 @@ func (lh *LogHandler) log(severity string, payload ...interface{}) error {
 	switch severity {
 	case "fatal":
 		{
-			lh.l.Println(out)
+			fmt.Println(out)
 			os.Exit(1)
 		}
 	}
-	lh.l.Println(out)
+	fmt.Println(out)
 
 	return nil
 }
@@ -104,6 +102,10 @@ func (lh *LogHandler) Fatal(payload ...interface{}) error {
 
 // New returns a new instance of LogHandler
 func New(appname string, appversion string, skipStack uint) *LogHandler {
+	if skipStack <= 1 {
+		skipStack = 4
+	}
+
 	return &LogHandler{
 		Skipstack:  int(skipStack),
 		appName:    appname,

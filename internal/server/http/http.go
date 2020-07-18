@@ -3,8 +3,10 @@ package http
 import (
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"time"
 
+	"github.com/bnkamalesh/errors"
 	"github.com/bnkamalesh/webgo/v4"
 	"github.com/bnkamalesh/webgo/v4/middleware"
 	"go.elastic.co/apm"
@@ -12,6 +14,11 @@ import (
 
 	"github.com/bnkamalesh/goapp/internal/api"
 )
+
+func errResponder(w http.ResponseWriter, err error) {
+	status, msg, _ := errors.HTTPStatusCodeMessage(err)
+	webgo.SendError(w, msg, status)
+}
 
 // Handlers struct has all the dependencies required for HTTP handlers
 type Handlers struct {
@@ -56,7 +63,7 @@ func (h *Handlers) routes() []*webgo.Route {
 func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
 	out, err := h.api.Health()
 	if err != nil {
-		webgo.R500(w, err.Error())
+		errResponder(w, err)
 		return
 	}
 	webgo.R200(w, out)
@@ -88,6 +95,19 @@ type Config struct {
 	DialTimeout  time.Duration
 }
 
+func panicRecoverer(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	defer func() {
+		p := recover()
+		if p == nil {
+			return
+		}
+		fmt.Println(string(debug.Stack()))
+		webgo.R500(w, errors.DefaultMessage)
+	}()
+
+	next(w, r)
+}
+
 // NewService returns an instance of HTTP with all its dependencies set
 func NewService(cfg *Config, a *api.API) (*HTTP, error) {
 	h := &Handlers{
@@ -106,7 +126,7 @@ func NewService(cfg *Config, a *api.API) (*HTTP, error) {
 	)
 
 	router.Use(middleware.AccessLog)
-
+	router.Use(panicRecoverer)
 	tracer, _ := apm.NewTracer(
 		"goapp",
 		"v1.1.3",

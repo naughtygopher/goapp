@@ -3,6 +3,8 @@ github.com/Masterminds/squirrel v1.4.0 h1:he5i/EXixZxrBUWcxzDYMiju9WZ3ld/l7QBNuo
 github.com/Masterminds/squirrel v1.4.0/go.mod h1:yaPeOnPG5ZRwL9oKdTsO/prlkPbXWZlRVMQ/gGlzIuA=
 github.com/armon/go-radix v1.0.0 h1:F4z6KzEeeQIMeLFa97iZU6vupzoecKdU5TX24SNppXI=
 github.com/armon/go-radix v1.0.0/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
+github.com/bnkamalesh/errors v0.1.8 h1:+1WtAWo4qMVwopgbRKnGMymxGOLBzYkf7PFMbrtjDLM=
+github.com/bnkamalesh/errors v0.1.8/go.mod h1:FQgYzv2aq3DI5JNr+ICLl0PbPokCJY56C/+mhZ8TpaU=
 github.com/bnkamalesh/webgo/v4 v4.1.3 h1:6LI5fNODmyOHiSCqbI6ZvxvL0hV+Xb7ZptDfSr3oyPg=
 github.com/bnkamalesh/webgo/v4 v4.1.3/go.mod h1:taIAonQTzao8G5rnB22WgKmQuIOWHpQ0n/YLAidBXlM=
 github.com/cockroachdb/apd v1.1.0 h1:3LFP3629v+1aKXU5Q37mxmRxX/pIu1nijXydLShEq5I=

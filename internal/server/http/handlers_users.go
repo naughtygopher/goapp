@@ -2,9 +2,9 @@ package http
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
+	"github.com/bnkamalesh/errors"
 	"github.com/bnkamalesh/goapp/internal/users"
 	"github.com/bnkamalesh/webgo/v4"
 )
@@ -15,26 +15,19 @@ func (h *Handlers) CreateUser(w http.ResponseWriter, r *http.Request) {
 	u := new(users.User)
 	err := json.NewDecoder(r.Body).Decode(u)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write(
-			[]byte(
-				fmt.Sprintf("invalid request body. %s", err.Error()),
-			),
-		)
+		errResponder(w, errors.InputBodyErr(err, "invalid JSON provided"))
 		return
 	}
 
 	createdUser, err := h.api.CreateUser(r.Context(), u)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
+		errResponder(w, err)
 		return
 	}
 
 	b, err := json.Marshal(createdUser)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
+		errResponder(w, err)
 		return
 	}
 
@@ -49,7 +42,7 @@ func (h *Handlers) ReadUserByEmail(w http.ResponseWriter, r *http.Request) {
 
 	out, err := h.api.ReadUserByEmail(r.Context(), email)
 	if err != nil {
-		webgo.R500(w, err.Error())
+		errResponder(w, err)
 		return
 	}
 
