@@ -8,9 +8,9 @@
 [![](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#tutorials)
 # Goapp
 
-This is an opinionated guideline to structure a Go web application/service (or could be extended for any application). And my opinions formed over a span of 5+ years building web applications/services with Go. Even though I've mentioned `go.mod` and `go.sum`, this guideline works for 1.4+ (i.e. since introduction of 'internal' special directory).
+This is an opinionated guideline to structure a Go web application/service (or could be extended for any application). My opinions were formed over a span of 5+ years building web applications/services with Go. Even though I've mentioned `go.mod` and `go.sum`, this guideline works for 1.4+ (i.e. since introduction of the 'internal' special directory).
 
-P.S: This guideline is not directly applicable for an independent package, as their primary use is to be consumed in other applications. In such cases, having most or all of the package in the root is probably the best way of doing it. And that is where Go's recommendation of "no unnecessary sub packages" comes into play.
+P.S: This guideline is not directly applicable for an independent package, as their primary use is to be consumed in other applications. In such cases, having most or all of the package code in the root is probably the best way of doing it. And that is where Go's recommendation of "no unnecessary sub packages" shines.
 
 In my effort to try and make things easier to understand, the structure is explained based on an imaginary note taking web application.
 
@@ -68,6 +68,9 @@ In my effort to try and make things easier to understand, the structure is expla
 |    |
 |    |____server
 |         |____http
+|         |    |____web
+|         |    |    |____templates
+|         |    |         |____index.html
 |         |    |____handlers_notes.go
 |         |    |____handlers_users.go
 |         |    |____http.go
@@ -94,42 +97,42 @@ In my effort to try and make things easier to understand, the structure is expla
 
 ## internal
 
-["internal" is a special directoryname in Go](https://golang.org/doc/go1.4#internalpackages), wherein any exported name/entity can only be consumed by its immediate parent.
+["internal" is a special directory name in Go](https://golang.org/doc/go1.4#internalpackages), wherein any exported name/entity can only be consumed within its immediate parent.
 
 ## internal/configs
 
-Creating a dedicated configs package might seem like an overkill, but it makes a lot of things easier. In the example app provided, you see the HTTP configs are hardcoded and returned. Later you decide to change to consume from env variables. All you do is update the configs package. And further down the line, maybe you decide to introduce something like [etcd](https://github.com/etcd-io/etcd), then you define the dependency in `Configs` and update the functions accordingly. This is yet another separation of concern package, to keep the `main` package a bit less ugly.
+Creating a dedicated configs package might seem like an overkill, but it makes a lot of things easier. In the example app provided, you see the HTTP configs are hardcoded and returned. Later you decide to change to consume from env variables. All you do is update the configs package. And further down the line, maybe you decide to introduce something like [etcd](https://github.com/etcd-io/etcd), then you define the dependency in `Configs` and update the functions accordingly. This is yet another separation of concern package, to try and keep `main` tidy.
 
 ## internal/api
 
-The API packages is supposed to have all the APIs exposed by the application. A specific API package is created to standardize the functionality, when there are different kind of servers running. e.g. an HTTP server as well as gRPC server. In such cases, the respective "handler" functions would inturn call `api.<Method name>`. This gives a guarantee that all your APIs behave exactly the same without any accidental inconsistencies across servers. 
+The API package is supposed to have all the APIs exposed by the application. A specific API package is created to standardize the functionality, when there are different kinds of servers running. e.g. an HTTP & a gRPC server. In such cases, the respective "handler" functions would inturn call `api.<Method name>`. This gives a guarantee that all your APIs behave exactly the same without any accidental inconsistencies across servers. 
 
-Though middleware handling is still at the internal/server layer. e.g. access log, authentication etc. Even though this can be brought to the `api` package, it doesn't make much sense because middleware are mostly dependent on the server implementation. 
+But remember, middleware handling is still at the internal/server layer. e.g. access log, authentication etc. Even though this can be brought to the `api` package, it doesn't make much sense because middleware are mostly dependent on the server/handler implementation. 
 
 ## internal/users
 
-Users package is where all your actual user related business logic is implemented. e.g. Create a user after cleaning up the input, validation, and then put it inside a persistent data store. 
+Users package is where all your actual user related business logic is implemented. e.g. Create a user after cleaning up the input, validation, and then store it inside a persistent datastore. 
 
-There's a `store.go` in this package which is where you write all the direct interactions with the datastore. There's an interface which is unique to the `users` package. Such an interface is introduced to handle dependency injection as well as dependency inversion elegantly. File naming convention for store files is `store_<logical group>.go`. e.g. `store_aggregations.go`. 
+There's a `store.go` in this package which is where you write all the direct interactions with the datastore. There's an interface which is unique to the `users` package. Such an interface is introduced to handle dependency injection as well as dependency inversion elegantly. File naming convention for store files is `store_<logical group>.go`. e.g. `store_aggregations.go`. Or simply `store.go` if there's not much code.
 
 `NewService` function is created in each package, which initializes and returns the respective package's handler. In case of users package, there's a `Users` struct. The name 'NewService' makes sense in most cases, and just reduces the burden of thinking of a good name for such scenarios. The Users struct here holds all the dependencies required for implementing features provided by users package.
 
 ## internal/users_test
 
-There's quite a lot of debate about 100% test coverage or not. 100% coverage sounds very nice, but might not be practical all the time or at times not even possible. What I like doing is, writing unit test for your core business logic, in this case 'Sanitize', 'Validate' etc are my business logic. And I've seen developers opting for the "easy way out" when writing unit tests as well. For instance `TestUser_Sanitize` test, you see that I'm repeating the exact same code as the Sanitize function and then comparing 2 instances. But I've seen developers do something like, create the "trimmed" instance by assigning individual fields from 'u', call Sanitize on trimmed and then compare (and some other variations which makes the test unreliable). My observation is that it happens primarily because of 2 reasons:
+There's quite a lot of debate about 100% test coverage or not. 100% coverage sounds very nice, but might not be practical all the time or at times not even possible. What I like doing is, writing unit test for your core business logic, in this case 'Sanitize', 'Validate' etc are my business logic. And I've seen developers opting for the "easy way out" when writing unit tests as well. For instance `TestUser_Sanitize` test, you see that I'm repeating the exact same code as the Sanitize function and then comparing 2 instances. But I've seen developers do the following, create the "trimmed" instance by assigning individual fields from 'u', call Sanitize on the trimmed instance and then compare (and some other variations which makes the test unreliable). My observation is that it happens primarily because of 2 reasons:
 
 1. Some developers are lazy that they don't want to write the exact body of the function within the test
     - only way I know of how to solve this, if a unit test "saves the day" for some buggy code they write. (at least that's how I changed)
 2. Some developers don't understand unit tests
-    - in this case we need to inform the developer of what exactly is the purpose of unit tests. The sole purpose of unit test is ironically "test the purpose of the unit/function". It is *_not_* to check the implementation, how it's done, how much time it took, how efficient it is etc. The sole purpose is "what id does?". This is why you see a lot of unit tests will have hardcoded values, because those values are reliable human input
+    - in this case we need to inform the developer of what exactly is the purpose of unit tests. The sole purpose of unit test is unironically "test the purpose of the unit/function". It is *_not_* to check the implementation, how it's done, how much time it took, how efficient it is etc. The sole purpose is "what id does?". This is why you see a lot of unit tests will have hardcoded values, because those values are reliable human input.
 
-Once you develop the habit of writing unit tests for [pure functions](https://en.wikipedia.org/wiki/Pure_function) and get the hang of it. You automatically start breaking down big functions into smaller *_testable_* functions (this is the best outcome we'd love to have). When you _layer_ your application, datastore is ideally just a utility, and if you can implement your business logic with such pure functions alone, not dependent on such utlities, that'd be perfect!
+Once you develop the habit of writing unit tests for [pure functions](https://en.wikipedia.org/wiki/Pure_function) and get the hang of it. You automatically start breaking down big functions into smaller *_testable_* functions/units (this is the best outcome we'd love to have). When you _layer_ your application, datastore is ideally just a utility, and if you can implement your business logic with such pure functions alone, not dependent on such utlities, that'd be perfect!
 
-Though in a lot of cases there are database functionalities which we use to implement business logic. e.g. the beautiful SQL Joins. People throw a lot of dirt at joins, but I love them! Joins are awesome. Let me not digress, you should be writing integration tests for these. There are 2 camps here as well, mocks vs real databases. I prefer real database, to stay as close as possible to the real deal (i.e. production deployment), so it should be the same version of database. I have a unit testing database setup (with no tables), and credentials with all access made available as part of CI/CD config. 
+Though in a lot of cases there are database functionalities which we use to implement business logic. e.g. the beautiful SQL Joins. People throw a lot of dirt at joins, but I love them! Joins are awesome. Let me not digress, you should be writing integration tests for these. There are 2 camps here as well, mocks vs real databases. I prefer real database, to stay as close as possible to the real deal (i.e. production deployment), so it should be the same version of database as well. I have a dedicated **isolated** unit testing database setup (with no tables), and credentials with all access made available as part of CI/CD config.
 
 ### conclusion
 
-Here comes my differentiator, at this point where you're testing individual package's datastore interaction, I'd rather you directly start testing the API. APIs would cover all the layers, API, business logic, datastore interaction etc. These tests can be built and deployed using external API testing frameworks (i.e. independent of your code). So my approach is a hybrid one, unit tests for all possible pure functions, and API test for the rest. And when it comes to API testing, your aim should be to try and "break the application". i.e. don't just cover happy paths. The lazier you are, more pure functions you will have(rather write unit tests than create API tests on yet another tool)!
+At this point where you're testing individual package's datastore interaction, I'd rather you directly start testing the API. APIs would cover all the layers, API, business logic, datastore interaction etc. These tests can be built and deployed using external API testing frameworks (i.e. independent of your code). So my approach is a hybrid one, unit tests for all possible pure functions, and API test for the rest. And when it comes to API testing, your aim should be to try and "break the application". i.e. don't just cover happy paths. The lazier you are, more pure functions you will have(rather write unit tests than create API tests on yet another tool)!
 
 P.S: I use [VSCode](https://code.visualstudio.com/) and it lets you auto [generate unit tests](https://code.visualstudio.com/docs/languages/go#_test). I'm positive other IDEs also have similar functionality. You could just right-click on the function and choose `Go: Generate unit tests for function`.
 
@@ -154,57 +157,68 @@ The datastore package initializes `pgxpool.Pool` and returns a new instance. I'm
 <img src="https://user-images.githubusercontent.com/1092882/86710547-b83e1780-c038-11ea-9829-b5585b3d599b.png" alt="APM 1 API" width="384px" height="256px" />
 </p>
 
-P.S: Similar to logger, we made these independent private packages hosted in our [VCS](https://en.wikipedia.org/wiki/Version_control).
+P.S: Similar to logger, we made these independent private packages hosted in our [VCS](https://en.wikipedia.org/wiki/Version_control). Shoutout to [Gitlab](https://gitlab.com/).
 
 ### internal/platform/logger
 
-I usually define the logging interface as well as the package, in a private repository (internal to your company e.g. vcs.yourcompany.io/gopkgs/logger), and is used across all services. Logging interface helps you to easily switch between different logging libraries, as all your apps would be using the interface you defined (interface segregation principle from SOLID). But here I'm making it part of the application itself as it has fewer chances of going wrong when trying to cater to a larger audience.
+I usually define the logging interface as well as the package, in a private repository (internal to your company e.g. vcs.yourcompany.io/gopkgs/logger), and is used across all services. Logging interface helps you to easily switch between different logging libraries, as all your apps would be using the interface **you** defined (interface segregation principle from SOLID). But here I'm making it part of the application itself as it has fewer chances of going wrong when trying to cater to a larger audience.
 
 **Logging might sound trivial but there are a few questions around it:**
 
 1. Should it be made a dependency of all packages, or can it be global?
 
-Logging just like any other dependency, is a dependency. And in most cases it's better to write packages (code in general) which have as few dependencies as practically possible. This is a general principle, fewer dependencies make a lot of things easier like maintainability, testing, porting, moving the code around, etc. And creating singleton Globals bring in restrictions, also it's a dependency nevertheless. Global instances have another issue, it doesn't give you flexibility when you need varying functionality across different packages (since it's global, it's common for all consumers). So in my opinion, it's better not to use it as a global either.
+Logging just like any other dependency, is a dependency. And in most cases it's better to write packages (code in general) which have as few dependencies as practically possible. This is a general principle, fewer dependencies make a lot of things easier like maintainability, testing, porting, moving the code around, etc. And creating singleton Globals bring in restrictions, also it's a dependency nevertheless. Global instances have another issue, it doesn't give you flexibility when you need varying functionality across different packages (since it's global, it's common for all consumers). E.g. in one package you'd like to have debug logs, and in the other you'd only want errors.So in my opinion, it's better not to use a global instance.
 
 2. Where would you do it? Should you bubble up errors and log at the parent level, or write where the error occurs?
 
-Keeping it at the root/outermost layer helps make things easier because you only need to worry about injecting logging dependency only in this package. And easier to controls it in general. i.e. One less thing to worry about in majority of the code.
+Keeping it at the root/outermost layer helps make things easier because you need to worry about injecting logging dependency only in this package. And easier to controls it in general. i.e. One less thing to worry about in majority of the code.
 
 For developers, while troubleshooting (which is one of the foremost need for logging), the line number along with filename helps a lot. Then it's obvious, log where the error occurs, right?
 
-Over the course of time, I found it's not really obvious. The more nested function calls you have, higher the chances of redundant logging. And setting up guidelines for your developers to only log at the origin of error is also not easy. A lot of developers get confused which level should be considered the origin (especially when there's deep nesting fn1 -> fn2 -> fn3 -> fn4). Thus I prefer logging at the API layer (and not handlers), [with annotated errors](https://golang.org/pkg/errors/)(using the '%w' verb in `fmt.Errorf`) to trace its origin. But with exceptions.
+Over the course of time, I found it's not really obvious. The more nested function calls you have, higher the chances of redundant logging. And setting up guidelines for your developers to only log at the origin of error is also not easy. A lot of developers get confused which level should be considered the origin (especially when there's deep nesting fn1 -> fn2 -> fn3 -> fn4). Thus I prefer logging at the API layer (and not handlers), [with annotated errors](https://golang.org/pkg/errors/)(using the '%w' verb in `fmt.Errorf`) to trace its origin. Recently I introduced a [minimal error handling package](https://github.com/bnkamalesh/errors/) which gives exact filename, line number and handle user friendly messages for API response.
 
-Consider the case of `internal/users` package. I'm making use of cache, but it's a read-through cache. So even if there's a miss in cache or cache store is down altogether, the system should still work. But then how do you find out if your cache is down when there's no logs? Hence you see the logger being made a dependency of users package.
+Though there are some exceptions to logging at API layer alone, consider the case of `internal/users` package. I'm making use of cache, but it's a read-through cache. So even if there's a miss in cache or cache store is down altogether, the system should still work (a specific business logic). But then how do you find out if your cache is down when there are no logs? Hence you see the logger being made a dependency of users package.
 
 ## internal/server/http
 
-All HTTP related configurations and functionalities are kept inside this package. The naming convention followed for filenames, is also straightforward. i.e. all the HTTP handlers of a specific package/domain are grouped under `handlers_<business logic unit name>.go`. 
+All HTTP related configurations and functionalities are kept inside this package. The naming convention followed for filenames, is also straightforward. i.e. all the HTTP handlers of a specific package/domain are grouped under `handlers_<business logic unit name>.go`. The special mention of naming handlers is because, often for decently large web applications (especially when building REST-ful services) you end up with a lot of handlers. I have services with 100+ handlers for individual APIs, so keeping them organized helps.
 
 e.g. handlers_users.go. The advantage of naming this way is, it's easier for developers to look at and identify from a list of filenames. e.g. on VS code it looks like this
 
 <p align="center"><img src="https://user-images.githubusercontent.com/1092882/86526182-24d8db00-beae-11ea-9681-0a31b2d67e1b.png" alt="handlers_users.go" width="512px"/></p>
 
-### internal/server/http/templates
+### internal/server/http/web/templates
 
-All HTML templates required for the application are to be put here. Sub directories based on the main business logic unit, e.g. users, can be created. It is highly unlikely that HTML templates used for HTTP responses are reused elsewhere in the application. Hence it justifies its location within 'server/http'.
-
-Ideally the template is executed in HTTP handlers, and never used anywhere outside the 'server/http' package.
+All HTML templates required for the application are to be put here. Sub directories based on the main business logic unit, e.g. we/templates/users, can be created if required. It is highly unlikely that HTML templates used for HTTP responses are reused elsewhere in the application. Hence it justifies its location within 'server/http'. Other static files shall also be made part of the `web` directory like `web/static/images`, `web/static/js` etc.
 
 ## lib
 
-This name is quite explicit and if you notice, it's outside of the special 'internal' directory. So within this directory, is meant for consumption in external projects. 
+This name is quite explicit and if you notice, it's outside of the special 'internal' directory. So within any exported name or entity within this directory, is meant for consumption in external projects. 
 
-It might seem redundant to add a sub-directory called 'goapp', the import path would be `github.com/bnkamalesh/goapp/lib/goapp`. Though this is not a mistake, while importing this package, you'd like to use it like this `goapp.<something>`. So if you directly put it under lib, it'd be `lib.` and that's obviously too generic and you'd have to manually setup aliases every time. Or if you try solving it by having the package name differ from the direcory name, it's going to be a tussle with your [IDE](https://en.wikipedia.org/wiki/Integrated_development_environment).
+It might seem redundant to add a sub-directory called 'goapp', the import path would be `github.com/bnkamalesh/goapp/lib/goapp`. Though this is not a mistake, while importing this package, you'd like to use it as follows `goapp.<something>`. So if you directly put it under lib, it'd be `lib.` and that's obviously too generic and you'd have to manually setup aliases every time. Or if you try solving it by having the package name which differ from the direcory name, it's going to be a tussle with your [IDE](https://en.wikipedia.org/wiki/Integrated_development_environment).
 
 Another advantage is, if you have more than one package which you'd like to be made available for external consumption, you create `lib/<other>`. In this case, you reduce the dependencies which are imported to external functions. On the contrary if you put everything inside `lib` or in a single package, you'd be forcing import of all dependencies even when you'd need only a small part of it.
 
 ## vendor
 
-I still vendor all dependencies using `go mod vendor`. vendoring is reliable and is guaranteed to not break. Chances of failure of your Go proxy for private repositories are higher compared to something going wrong with vendored packages.
+I still vendor all dependencies using `go mod vendor`. vendoring is reliable and is guaranteed to not break. Chances of failure of your Go proxy for private repositories are higher compared to something going wrong with vendored packages. 
+
+I have an alias setup in bash environment, so inside **~/.bash_profile**
+```bash
+alias gomodvendor="go mod verify && go mod tidy && go mod vendor"
+```
+
+So whenever I'm ready to commit
+
+```bash
+$ cd /path/to/go/project
+$ gomodevndor
+$ git add -f vendor
+```
 
 ## docker
 
-I've been a fan of Docker since a few years now. I like keeping a dedicated folder for Dockerfile, in anticipation of introducing multiple Docker files or other files required for Docker image build.
+I've been a fan of Docker since a few years now. I like keeping a dedicated folder for Dockerfile, in anticipation of introducing multiple Docker files or maintaining other files required for Docker image build.
 
 e.g. [Dockerfiles for Alpine & Debian based images](https://github.com/bnkamalesh/golang-dockerfile)
 
@@ -222,17 +236,17 @@ $ docker run -p 8080:8080 --rm -ti goapp
 
 ## schemas
 
-I maintain all the SQL schemas required by the project in this directory. This is not nested inside individual package because it's not consumed by the application at all. Also the fact that, actual consumers of the schema (developers, DB maintainers etc.) are varied. It's better to make it easier for all the audience rather than just developers.
+All the SQL schemas required by the project in this directory. This is not nested inside individual package because it's not consumed by the application at all. Also the fact that, actual consumers of the schema (developers, DB maintainers etc.) are varied. It's better to make it easier for all the audience rather than just developers. Even if you use NoSQL databases, your application would need some sort of schema to function, which can still be maintained inside this.
 
 ## main.go
 
-And finally the `main package`. I prefer putting the `main.go` file outside as shown here. No non-sense, straight up `go run main.go` would start the application. 'main' is probably going to be the ugliest package where all conventions and separation of concerns are broken. But I believe this is acceptable. The responsibility of main package is one and only one, `get things started`.
+Finally the `main package`. I prefer putting the `main.go` file outside as shown here. No non-sense, straight up `go run main.go` would start the application (provided the required configurations are available). 'main' is probably going to be the ugliest package where all conventions and separation of concerns are broken, but this is acceptable. The responsibility of main package is one and only one, **get things started**.
 
-`cmd` directory can be added in the root for adding multiple commands. This is usually required when there are multiple modes of interacting with the application. i.e. HTTP server, CLI application etc. In which case each usecase can be initialized and started with subpackages under `cmd`. Even though Go advocates lesser use of packages, I would give higher precedence for separation of concerns at a package level.
+`cmd` directory can be added in the root for adding multiple commands. This is usually required *when there are multiple modes of interacting with the application*. i.e. HTTP server, CLI application etc. In which case each usecase can be initialized and started with subpackages under `cmd`. Even though Go advocates fewer use of packages, I would give higher precedence for separation of concerns at a package level to keep things tidy.
 
 ## Integrating with ELK APM
 
-I'm a fan of ELK APM when I first laid my eyes on it. The interation is super easy as well. In the sample app, you can check `internal/server/http.go:NewService` how APM is enabled. Once you have ELK APM setup, you need to provide the following configuration for it work.
+I've been a fan of ELK APM when I first laid my eyes on it. The integration is super easy as well. In the sample app, you can check `internal/server/http.go:NewService` how APM is enabled. Once you have ELK APM setup, you need to provide the following configuration for it work.
 You can [refer here](https://www.elastic.co/guide/en/apm/agent/go/current/configuration.html) for details on various configurations.
 
 ```bash
@@ -243,12 +257,11 @@ $ export ELASTIC_APM_ENVIRONMENT=local
 $ export ELASTIC_APM_SANITIZE_FIELD_NAMES=password,repeat_password,authorization,set-cookie,cookie
 $ export ELASTIC_APM_CAPTURE_HEADERS=false
 $ export ELASTIC_APM_METRICS_INTERVAL=60s
-$ go run main.go
 ```
 
 ## Error handling
 
-After years of trying different approaches, I finally caved and a created custom [error handling package](https://github.com/bnkamalesh/errors) to make troubleshooting and responding to APIs easier, p.s: it's a drop-in replacement for Go builtin errors. More often than not, we log full details of errors and then respond to the API with a cleaner/friendly message. If you end-up using the [errors](https://github.com/bnkamalesh/errors) package, there's only one thing to follow. Any error returned by an external (external to the project) should be wrapped using the respective helper method. e.g. `errors.InternalErr(err, "<user friendly message>")` where err is the original error returned by the external package. If not using the custom error package, then you would have to annotate all the errors with relevant context info. e.g. `fmt.Errorf("<more info> %w", err)`. Though if you're annotating errors all the way, the user response has still to be handled separately. In this case, HTTP status code and the custom messages are better handled in the handlers layer.
+After years of trying different approaches, I finally caved and a created custom [error handling package](https://github.com/bnkamalesh/errors) to make troubleshooting and responding to APIs easier, p.s: it's a drop-in replacement for Go builtin errors. More often than not, we log full details of errors and then respond to the API with a cleaner/friendly message. If you end-up using the [errors](https://github.com/bnkamalesh/errors) package, there's only one thing to follow. Any error returned by an external (external to the project) should be wrapped using the respective helper method. e.g. `errors.InternalErr(err, "<user friendly message>")` where err is the original error returned by the external package. If not using the custom error package, then you would have to annotate all the errors with relevant context info. e.g. `fmt.Errorf("<more info> %w", err)`. Though if you're annotating errors all the way, the user response has still to be handled separately. In which case, HTTP status code and the custom messages are better handled in the handlers layer.
 
 # Note
 
@@ -259,14 +272,15 @@ You can clone this repository and actually run the application, it'd start an HT
 - `/users` POST, to create new user
 - `/users/:emailID` GET, reads a user from the database given the email id. e.g. http://localhost:8080/users/john.doe@example.com
 
-I've used [webgo](https://github.com/bnkamalesh/webgo) to setup the HTTP server (I guess I'm just biased).
+I've used [webgo](https://github.com/bnkamalesh/webgo) to setup the HTTP server (I guess I'm biased ¯\_(ツ)_/¯ ).
 
 How to run?
+
 ```bash
 $ git clone https://github.com/bnkamalesh/goapp.git
 $ cd goapp
 # Update the internal/configs/configs.go with valid datastore configuration. Or pass 'nil' while calling user service. The app wouldn't start if no valid configuration is provided.
-$ go run main.go
+$ TEMPLATES_BASEPATH=${PWD}/internal/server/http/web/templates go run main.go
 ```
 
 ## Something missing?

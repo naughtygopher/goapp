@@ -15,25 +15,25 @@ func main() {
 
 	cfg, err := configs.NewService()
 	if err != nil {
-		l.Fatal(err)
+		l.Fatal(err.Error())
 		return
 	}
 
 	dscfg, err := cfg.Datastore()
 	if err != nil {
-		l.Fatal(err)
+		l.Fatal(err.Error())
 		return
 	}
 
 	pqdriver, err := datastore.NewService(dscfg)
 	if err != nil {
-		l.Fatal(err)
-		return
+		// l.Fatal(err.Error())
+		// return
 	}
 
 	cacheCfg, err := cfg.Cachestore()
 	if err != nil {
-		l.Fatal(err)
+		l.Fatal(err.Error())
 		return
 	}
 
@@ -46,19 +46,19 @@ func main() {
 
 	us, err := users.NewService(l, pqdriver, redispool)
 	if err != nil {
-		l.Fatal(err)
+		l.Fatal(err.Error())
 		return
 	}
 
 	a, err := api.NewService(l, us)
 	if err != nil {
-		l.Fatal(err)
+		l.Fatal(err.Error())
 		return
 	}
 
 	httpCfg, err := cfg.HTTP()
 	if err != nil {
-		l.Fatal(err)
+		l.Fatal(err.Error())
 		return
 	}
 
@@ -67,7 +67,7 @@ func main() {
 		a,
 	)
 	if err != nil {
-		l.Fatal(err)
+		l.Fatal(err.Error())
 		return
 	}
 

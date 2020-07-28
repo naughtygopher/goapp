@@ -1,7 +1,9 @@
 package http
 
 import (
+	"bytes"
 	"fmt"
+	"html/template"
 	"net/http"
 	"runtime/debug"
 	"time"
@@ -22,7 +24,8 @@ func errResponder(w http.ResponseWriter, err error) {
 
 // Handlers struct has all the dependencies required for HTTP handlers
 type Handlers struct {
-	api *api.API
+	api  *api.API
+	home *template.Template
 }
 
 func (h *Handlers) routes() []*webgo.Route {
@@ -71,7 +74,30 @@ func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
 
 // HelloWorld is a helloworld HTTP handler
 func (h *Handlers) HelloWorld(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Hello world"))
+	contentType := r.Header.Get("Content-Type")
+	switch contentType {
+	case "application/json":
+		{
+			webgo.SendResponse(w, "hello world", http.StatusOK)
+		}
+	default:
+		{
+			buff := bytes.NewBufferString("")
+			err := h.home.Execute(
+				buff,
+				struct {
+					Message string
+				}{
+					Message: "welcome to the home page!",
+				},
+			)
+			if err != nil {
+				webgo.Send(w, contentType, err.Error(), http.StatusInternalServerError)
+			}
+			w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+			w.Write(buff.Bytes())
+		}
+	}
 }
 
 // HTTP struct holds all the dependencies required for starting HTTP server
@@ -88,11 +114,12 @@ func (h *HTTP) Start() {
 
 // Config holds all the configuration required to start the HTTP server
 type Config struct {
-	Host         string
-	Port         string
-	ReadTimeout  time.Duration
-	WriteTimeout time.Duration
-	DialTimeout  time.Duration
+	Host              string
+	Port              string
+	TemplatesBasePath string
+	ReadTimeout       time.Duration
+	WriteTimeout      time.Duration
+	DialTimeout       time.Duration
 }
 
 func panicRecoverer(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
@@ -108,10 +135,28 @@ func panicRecoverer(w http.ResponseWriter, r *http.Request, next http.HandlerFun
 	next(w, r)
 }
 
+func loadHomeTemplate(basePath string) (*template.Template, error) {
+	t := template.New("index.html")
+	home, err := t.ParseFiles(
+		fmt.Sprintf("%s/index.html", basePath),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return home, nil
+}
+
 // NewService returns an instance of HTTP with all its dependencies set
 func NewService(cfg *Config, a *api.API) (*HTTP, error) {
+	home, err := loadHomeTemplate(cfg.TemplatesBasePath)
+	if err != nil {
+		return nil, err
+	}
+
 	h := &Handlers{
-		api: a,
+		api:  a,
+		home: home,
 	}
 
 	router := webgo.NewRouter(

@@ -23,7 +23,10 @@ RUN adduser --home "/appuser" --disabled-password appuser \
     --gecos "appuser,-,-,-"
 USER appuser
 
-COPY --from=builder /app /home/appuser/app
+COPY --from=builder /app/internal/server/http/web /home/appuser/app/web
+COPY --from=builder /app/appbin /home/appuser/app
+
+ENV TEMPLATES_BASEPATH=/home/appuser/app/web/templates
 
 WORKDIR /home/appuser/app
 
