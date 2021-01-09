@@ -8,18 +8,18 @@
 [![](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#tutorials)
 # Goapp
 
-This is an opinionated guideline to structure a Go web application/service (or could be extended for any application). My opinions were formed over a span of 5+ years building web applications/services with Go. Even though I've mentioned `go.mod` and `go.sum`, this guideline works for 1.4+ (i.e. since introduction of the 'internal' special directory).
+This is an opinionated guideline to structure a Go web application/service (or could be extended for any application). My opinions were formed over a span of 5+ years building web applications/services with Go, trying to implement [DDD (Domain Driven Development)](https://en.wikipedia.org/wiki/Domain-driven_design) & [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html). Even though I've mentioned `go.mod` and `go.sum`, this guideline works for 1.4+ (i.e. since introduction of the [special 'internal' directory](https://golang.org/doc/go1.4#internalpackages)).
 
 P.S: This guideline is not directly applicable for an independent package, as their primary use is to be consumed in other applications. In such cases, having most or all of the package code in the root is probably the best way of doing it. And that is where Go's recommendation of "no unnecessary sub packages" shines.
 
-In my effort to try and make things easier to understand, the structure is explained based on an imaginary note taking web application.
+In my effort to try and make things easier to understand, the structure is explained based on a note taking web application (with hardly any features implemented 🤭 ).
 
 ## Table of contents
 
 1. [Directory structure](#directory-structure)
 2. [Configs package](#internalconfigs)
 3. [API package](#internalapi)
-4. [Users](#internalusers) (would be common for all such business logic units, 'notes' being similar to Users) package.
+4. [Users](#internalusers) (would be common for all such business logic units, 'notes' being similar to users) package.
 5. [Testing](#internalusers_test)
 6. [Platform package](#internalplatform)
     - 6.1. [datastore](#internalplatformdatastore)
@@ -31,8 +31,10 @@ In my effort to try and make things easier to understand, the structure is expla
 10. [docker](#docker)
 11. [schemas](#schemas)
 12. [main.go](#maingo)
-13. [Integrating with ELK APM](#integrating-with-elk-apm)
-14. [Note](#note)
+13. [Error handling](#error-handling)
+14. [Dependency flow](#dependency-flow)
+15. [Integrating with ELK APM](#integrating-with-elk-apm)
+16. [Note](#note)
 
 
 ## Directory structure
@@ -119,16 +121,16 @@ There's a `store.go` in this package which is where you write all the direct int
 
 ## internal/users_test
 
-There's quite a lot of debate about 100% test coverage or not. 100% coverage sounds very nice, but might not be practical all the time or at times not even possible. What I like doing is, writing unit test for your core business logic, in this case 'Sanitize', 'Validate' etc are my business logic. And I've seen developers opting for the "easy way out" when writing unit tests as well. For instance `TestUser_Sanitize` test, you see that I'm repeating the exact same code as the Sanitize function and then comparing 2 instances. But I've seen developers do the following, create the "trimmed" instance by assigning individual fields from 'u', call Sanitize on the trimmed instance and then compare (and some other variations which makes the test unreliable). My observation is that it happens primarily because of 2 reasons:
+There's quite a lot of debate about 100% test coverage or not. 100% coverage sounds very nice, but might not be practical all the time or at times not even possible. What I like doing is, writing unit test for your core business logic, in this case 'Sanitize', 'Validate' etc are my business logic. And I've seen developers opting for the "easy way out" when writing unit tests as well. For instance `TestUser_Sanitize` test, you see that I'm repeating the exact same code as the Sanitize function and then comparing 2 instances. But I've seen developers do the following, create the "trimmed" instance by assigning individual fields from 'u', call Sanitize on the trimmed instance and then compare (and some other variations which make the tests unreliable). My observation is that it happens primarily because of 2 reasons:
 
-1. Some developers are lazy that they don't want to write the exact body of the function within the test
+1. Some developers are lazy that they don't want to write the exact body of the function within the test or maintaining snapshots
     - only way I know of how to solve this, if a unit test "saves the day" for some buggy code they write. (at least that's how I changed)
 2. Some developers don't understand unit tests
-    - in this case we need to inform the developer of what exactly is the purpose of unit tests. The sole purpose of unit test is unironically "test the purpose of the unit/function". It is *_not_* to check the implementation, how it's done, how much time it took, how efficient it is etc. The sole purpose is "what id does?". This is why you see a lot of unit tests will have hardcoded values, because those values are reliable human input.
+    - in this case we need to inform the developer of what exactly is the purpose of unit tests. The sole purpose of unit test is unironically "test the purpose of the unit/function". It is *_not_* to check the implementation, how it's done, how much time it took, how efficient it is etc. The sole purpose is "what does it do?". This is why you see a lot of unit tests will have hardcoded values, because those values are reliable/verified human input.
 
-Once you develop the habit of writing unit tests for [pure functions](https://en.wikipedia.org/wiki/Pure_function) and get the hang of it. You automatically start breaking down big functions into smaller *_testable_* functions/units (this is the best outcome we'd love to have). When you _layer_ your application, datastore is ideally just a utility, and if you can implement your business logic with such pure functions alone, not dependent on such utlities, that'd be perfect!
+Once you develop the habit of writing unit tests for [pure functions](https://en.wikipedia.org/wiki/Pure_function) and get the hang of it. You automatically start breaking down big functions into smaller *_testable_* functions/units (this is the best outcome, and what we'd love to have). When you _layer_ your application, datastore is ideally just a utility (_implementation detail_ in [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html) parlance), and if you can implement your business logic with pure functions alone, not dependent on such utlities, that'd be perfect! Though in most cases you'd have dependencies like database, queue, cache etc. But to keep things as _pure_ as possible, we bridge the gap using Go interfaces. Refer to `store.go`, the business logic functions are oblivious to the underlying technology (RDBMS, NoSQL, CSV etc.).
 
-Though in a lot of cases there are database functionalities which we use to implement business logic. e.g. the beautiful SQL Joins. People throw a lot of dirt at joins, but I love them! Joins are awesome. Let me not digress, you should be writing integration tests for these. There are 2 camps here as well, mocks vs real databases. I prefer real database, to stay as close as possible to the real deal (i.e. production deployment), so it should be the same version of database as well. I have a dedicated **isolated** unit testing database setup (with no tables), and credentials with all access made available as part of CI/CD config.
+Pure functions of business logic, in some cases may not be practical. Because there are database functionalities which we use to implement business logic. e.g. the beautiful SQL Joins, there's no reason you should implement this in your application. Make use of tried and tested systems, move on with your feature development. People throw a lot of dirt at joins, but I love them! Joins are awesome. Let me not digress, you should be writing integration tests for these. There are 2 camps here as well, mocks vs real databases. I prefer real database, to stay as close as possible to the real deal (i.e. production deployment), so it should be the same version of database as well. I have a dedicated **isolated** unit testing database setup (with no tables), and credentials with all access made available as part of CI/CD config.
 
 ### conclusion
 
@@ -146,7 +148,7 @@ Similar to the users package, 'notes' handles all business logic related to 'not
 
 ## internal/platform
 
-Platform package contains all the packages which are to be consumed across multiple packages within the project. For instance the datastore package will be consumed by both users and notes package.
+Platform package contains all the packages which are to be consumed across multiple packages within the project. For instance the datastore package will be consumed by both users and notes package. I'm not really particular about the name _platform_, but it's been stuck with me for a long time. This might as well be _pkg_, _utils_ etc.
 
 ### internal/platform/datastore
 
@@ -157,7 +159,7 @@ The datastore package initializes `pgxpool.Pool` and returns a new instance. I'm
 <img src="https://user-images.githubusercontent.com/1092882/86710547-b83e1780-c038-11ea-9829-b5585b3d599b.png" alt="APM 1 API" width="384px" height="256px" />
 </p>
 
-P.S: Similar to logger, we made these independent private packages hosted in our [VCS](https://en.wikipedia.org/wiki/Version_control). Shoutout to [Gitlab](https://gitlab.com/).
+P.S: Similar to logger, we made these independent private packages hosted in our [VCS](https://en.wikipedia.org/wiki/Version_control). Shoutout to [Gitlab](https://gitlab.com/)!
 
 ### internal/platform/logger
 
@@ -175,9 +177,9 @@ Keeping it at the root/outermost layer helps make things easier because you need
 
 For developers, while troubleshooting (which is one of the foremost need for logging), the line number along with filename helps a lot. Then it's obvious, log where the error occurs, right?
 
-Over the course of time, I found it's not really obvious. The more nested function calls you have, higher the chances of redundant logging. And setting up guidelines for your developers to only log at the origin of error is also not easy. A lot of developers get confused which level should be considered the origin (especially when there's deep nesting fn1 -> fn2 -> fn3 -> fn4). Thus I prefer logging at the API layer (and not handlers), [with annotated errors](https://golang.org/pkg/errors/)(using the '%w' verb in `fmt.Errorf`) to trace its origin. Recently I introduced a [minimal error handling package](https://github.com/bnkamalesh/errors/) which gives exact filename, line number and handle user friendly messages for API response.
+Over the course of time, I found it's not really obvious. The more nested function calls you have, higher the chances of redundant logging. And setting up guidelines for your developers to only log at the origin of error is also not easy. A lot of developers get confused which level should be considered the origin (especially when there's deep nesting fn1 -> fn2 -> fn3 -> fn4). Thus I prefer logging at the API layer (and not handlers), [with annotated errors](https://golang.org/pkg/errors/)(using the '%w' verb in `fmt.Errorf`) to trace its origin. Recently I introduced a [minimal error handling package](https://github.com/bnkamalesh/errors/) which gives  long file path, line number of the origin of error as well as help set user friendly messages for API response.
 
-Though there are some exceptions to logging at API layer alone, consider the case of `internal/users` package. I'm making use of cache, but it's a read-through cache. So even if there's a miss in cache or cache store is down altogether, the system should still work (a specific business logic). But then how do you find out if your cache is down when there are no logs? Hence you see the logger being made a dependency of users package.
+Though there are some exceptions to logging at API layer alone, consider the case of `internal/users` package. I'm making use of cache, but it's a read-through cache. So even if there's a miss in cache or cache store is down altogether, the system should still work (a specific business logic). But then how do you find out if your cache is down when there are no logs? Hence you see the logger being made a dependency of users package. This would apply to any asynchronous behaviours as well, e.g. a queue subscriber
 
 ## internal/server/http
 
@@ -244,6 +246,14 @@ Finally the `main package`. I prefer putting the `main.go` file outside as shown
 
 `cmd` directory can be added in the root for adding multiple commands. This is usually required *when there are multiple modes of interacting with the application*. i.e. HTTP server, CLI application etc. In which case each usecase can be initialized and started with subpackages under `cmd`. Even though Go advocates fewer use of packages, I would give higher precedence for separation of concerns at a package level to keep things tidy.
 
+## Error handling
+
+After years of trying different approaches, I finally caved and a created custom [error handling package](https://github.com/bnkamalesh/errors) to make troubleshooting and responding to APIs easier, p.s: it's a drop-in replacement for Go builtin errors. More often than not, we log full details of errors and then respond to the API with a cleaner/friendly message. If you end-up using the [errors](https://github.com/bnkamalesh/errors) package, there's only one thing to follow. Any error returned by an external (external to the project) should be wrapped using the respective helper method. e.g. `errors.InternalErr(err, "<user friendly message>")` where err is the original error returned by the external package. If not using the custom error package, then you would have to annotate all the errors with relevant context info. e.g. `fmt.Errorf("<more info> %w", err)`. Though if you're annotating errors all the way, the user response has still to be handled separately. In which case, HTTP status code and the custom messages are better handled in the handlers layer.
+
+## Dependency flow
+<p align="center">
+<img src="https://user-images.githubusercontent.com/1092882/104085767-f5999100-5277-11eb-808a-5fd9b6776ad6.png" alt="Dependency flow between the layers" width="768px"/>
+</p>
 ## Integrating with ELK APM
 
 I've been a fan of ELK APM when I first laid my eyes on it. The integration is super easy as well. In the sample app, you can check `internal/server/http.go:NewService` how APM is enabled. Once you have ELK APM setup, you need to provide the following configuration for it work.
@@ -259,10 +269,6 @@ $ export ELASTIC_APM_CAPTURE_HEADERS=false
 $ export ELASTIC_APM_METRICS_INTERVAL=60s
 ```
 
-## Error handling
-
-After years of trying different approaches, I finally caved and a created custom [error handling package](https://github.com/bnkamalesh/errors) to make troubleshooting and responding to APIs easier, p.s: it's a drop-in replacement for Go builtin errors. More often than not, we log full details of errors and then respond to the API with a cleaner/friendly message. If you end-up using the [errors](https://github.com/bnkamalesh/errors) package, there's only one thing to follow. Any error returned by an external (external to the project) should be wrapped using the respective helper method. e.g. `errors.InternalErr(err, "<user friendly message>")` where err is the original error returned by the external package. If not using the custom error package, then you would have to annotate all the errors with relevant context info. e.g. `fmt.Errorf("<more info> %w", err)`. Though if you're annotating errors all the way, the user response has still to be handled separately. In which case, HTTP status code and the custom messages are better handled in the handlers layer.
-
 # Note
 
 You can clone this repository and actually run the application, it'd start an HTTP server listening on port 8080 with the following routes available.
@@ -272,7 +278,7 @@ You can clone this repository and actually run the application, it'd start an HT
 - `/users` POST, to create new user
 - `/users/:emailID` GET, reads a user from the database given the email id. e.g. http://localhost:8080/users/john.doe@example.com
 
-I've used [webgo](https://github.com/bnkamalesh/webgo) to setup the HTTP server (I guess I'm biased ¯\_(ツ)_/¯ ).
+I've used [webgo](https://github.com/bnkamalesh/webgo) to setup the HTTP server (I guess I'm biased ¯\\ (ツ) /¯ ).
 
 How to run?
 
