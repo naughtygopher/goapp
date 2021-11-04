@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//+build !linux
+//go:build !linux
+// +build !linux
 
-package apm
+package apm // import "go.elastic.co/apm"
 
 import (
 	"github.com/pkg/errors"

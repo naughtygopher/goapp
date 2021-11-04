@@ -5,5 +5,8 @@ go:
   - stable
   - "1.8.x"
 
+install:
+  - go get
+
 script:
-  - go test -v ./...
+  - go test -v

@@ -16,6 +16,10 @@ func (tx *Tx) Begin(ctx context.Context) (pgx.Tx, error) {
 	return tx.t.Begin(ctx)
 }
 
+func (tx *Tx) BeginFunc(ctx context.Context, f func(pgx.Tx) error) error {
+	return tx.t.BeginFunc(ctx, f)
+}
+
 func (tx *Tx) Commit(ctx context.Context) error {
 	err := tx.t.Commit(ctx)
 	if tx.c != nil {
@@ -60,6 +64,10 @@ func (tx *Tx) Query(ctx context.Context, sql string, args ...interface{}) (pgx.R
 
 func (tx *Tx) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
 	return tx.t.QueryRow(ctx, sql, args...)
+}
+
+func (tx *Tx) QueryFunc(ctx context.Context, sql string, args []interface{}, scans []interface{}, f func(pgx.QueryFuncRow) error) (pgconn.CommandTag, error) {
+	return tx.t.QueryFunc(ctx, sql, args, scans, f)
 }
 
 func (tx *Tx) Conn() *pgx.Conn {

@@ -5,9 +5,10 @@ package pgtype
 import (
 	"database/sql/driver"
 	"encoding/binary"
+	"fmt"
+	"reflect"
 
 	"github.com/jackc/pgio"
-	errors "golang.org/x/xerrors"
 )
 
 type Int4Array struct {
@@ -30,6 +31,7 @@ func (dst *Int4Array) Set(src interface{}) error {
 		}
 	}
 
+	// Attempt to match to select common types:
 	switch value := src.(type) {
 
 	case []int16:
@@ -349,13 +351,97 @@ func (dst *Int4Array) Set(src interface{}) error {
 			}
 		}
 	default:
-		if originalSrc, ok := underlyingSliceType(src); ok {
-			return dst.Set(originalSrc)
+		// Fallback to reflection if an optimised match was not found.
+		// The reflection is necessary for arrays and multidimensional slices,
+		// but it comes with a 20-50% performance penalty for large arrays/slices
+		reflectedValue := reflect.ValueOf(src)
+		if !reflectedValue.IsValid() || reflectedValue.IsZero() {
+			*dst = Int4Array{Status: Null}
+			return nil
 		}
-		return errors.Errorf("cannot convert %v to Int4Array", value)
+
+		dimensions, elementsLength, ok := findDimensionsFromValue(reflectedValue, nil, 0)
+		if !ok {
+			return fmt.Errorf("cannot find dimensions of %v for Int4Array", src)
+		}
+		if elementsLength == 0 {
+			*dst = Int4Array{Status: Present}
+			return nil
+		}
+		if len(dimensions) == 0 {
+			if originalSrc, ok := underlyingSliceType(src); ok {
+				return dst.Set(originalSrc)
+			}
+			return fmt.Errorf("cannot convert %v to Int4Array", src)
+		}
+
+		*dst = Int4Array{
+			Elements:   make([]Int4, elementsLength),
+			Dimensions: dimensions,
+			Status:     Present,
+		}
+		elementCount, err := dst.setRecursive(reflectedValue, 0, 0)
+		if err != nil {
+			// Maybe the target was one dimension too far, try again:
+			if len(dst.Dimensions) > 1 {
+				dst.Dimensions = dst.Dimensions[:len(dst.Dimensions)-1]
+				elementsLength = 0
+				for _, dim := range dst.Dimensions {
+					if elementsLength == 0 {
+						elementsLength = int(dim.Length)
+					} else {
+						elementsLength *= int(dim.Length)
+					}
+				}
+				dst.Elements = make([]Int4, elementsLength)
+				elementCount, err = dst.setRecursive(reflectedValue, 0, 0)
+				if err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		}
+		if elementCount != len(dst.Elements) {
+			return fmt.Errorf("cannot convert %v to Int4Array, expected %d dst.Elements, but got %d instead", src, len(dst.Elements), elementCount)
+		}
 	}
 
 	return nil
+}
+
+func (dst *Int4Array) setRecursive(value reflect.Value, index, dimension int) (int, error) {
+	switch value.Kind() {
+	case reflect.Array:
+		fallthrough
+	case reflect.Slice:
+		if len(dst.Dimensions) == dimension {
+			break
+		}
+
+		valueLen := value.Len()
+		if int32(valueLen) != dst.Dimensions[dimension].Length {
+			return 0, fmt.Errorf("multidimensional arrays must have array expressions with matching dimensions")
+		}
+		for i := 0; i < valueLen; i++ {
+			var err error
+			index, err = dst.setRecursive(value.Index(i), index, dimension+1)
+			if err != nil {
+				return 0, err
+			}
+		}
+
+		return index, nil
+	}
+	if !value.CanInterface() {
+		return 0, fmt.Errorf("cannot convert all values to Int4Array")
+	}
+	if err := dst.Elements[index].Set(value.Interface()); err != nil {
+		return 0, fmt.Errorf("%v in Int4Array", err)
+	}
+	index++
+
+	return index, nil
 }
 
 func (dst Int4Array) Get() interface{} {
@@ -372,163 +458,244 @@ func (dst Int4Array) Get() interface{} {
 func (src *Int4Array) AssignTo(dst interface{}) error {
 	switch src.Status {
 	case Present:
-		switch v := dst.(type) {
+		if len(src.Dimensions) <= 1 {
+			// Attempt to match to select common types:
+			switch v := dst.(type) {
 
-		case *[]int16:
-			*v = make([]int16, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]int16:
+				*v = make([]int16, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		case *[]*int16:
-			*v = make([]*int16, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]*int16:
+				*v = make([]*int16, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		case *[]uint16:
-			*v = make([]uint16, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]uint16:
+				*v = make([]uint16, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		case *[]*uint16:
-			*v = make([]*uint16, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]*uint16:
+				*v = make([]*uint16, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		case *[]int32:
-			*v = make([]int32, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]int32:
+				*v = make([]int32, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		case *[]*int32:
-			*v = make([]*int32, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]*int32:
+				*v = make([]*int32, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		case *[]uint32:
-			*v = make([]uint32, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]uint32:
+				*v = make([]uint32, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		case *[]*uint32:
-			*v = make([]*uint32, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]*uint32:
+				*v = make([]*uint32, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		case *[]int64:
-			*v = make([]int64, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]int64:
+				*v = make([]int64, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		case *[]*int64:
-			*v = make([]*int64, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]*int64:
+				*v = make([]*int64, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		case *[]uint64:
-			*v = make([]uint64, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]uint64:
+				*v = make([]uint64, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		case *[]*uint64:
-			*v = make([]*uint64, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]*uint64:
+				*v = make([]*uint64, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		case *[]int:
-			*v = make([]int, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]int:
+				*v = make([]int, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		case *[]*int:
-			*v = make([]*int, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]*int:
+				*v = make([]*int, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		case *[]uint:
-			*v = make([]uint, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]uint:
+				*v = make([]uint, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		case *[]*uint:
-			*v = make([]*uint, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]*uint:
+				*v = make([]*uint, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		default:
-			if nextDst, retry := GetAssignToDstType(dst); retry {
-				return src.AssignTo(nextDst)
 			}
-			return errors.Errorf("unable to assign to %T", dst)
 		}
+
+		// Try to convert to something AssignTo can use directly.
+		if nextDst, retry := GetAssignToDstType(dst); retry {
+			return src.AssignTo(nextDst)
+		}
+
+		// Fallback to reflection if an optimised match was not found.
+		// The reflection is necessary for arrays and multidimensional slices,
+		// but it comes with a 20-50% performance penalty for large arrays/slices
+		value := reflect.ValueOf(dst)
+		if value.Kind() == reflect.Ptr {
+			value = value.Elem()
+		}
+
+		switch value.Kind() {
+		case reflect.Array, reflect.Slice:
+		default:
+			return fmt.Errorf("cannot assign %T to %T", src, dst)
+		}
+
+		if len(src.Elements) == 0 {
+			if value.Kind() == reflect.Slice {
+				value.Set(reflect.MakeSlice(value.Type(), 0, 0))
+				return nil
+			}
+		}
+
+		elementCount, err := src.assignToRecursive(value, 0, 0)
+		if err != nil {
+			return err
+		}
+		if elementCount != len(src.Elements) {
+			return fmt.Errorf("cannot assign %v, needed to assign %d elements, but only assigned %d", dst, len(src.Elements), elementCount)
+		}
+
+		return nil
 	case Null:
 		return NullAssignTo(dst)
 	}
 
-	return errors.Errorf("cannot decode %#v into %T", src, dst)
+	return fmt.Errorf("cannot decode %#v into %T", src, dst)
+}
+
+func (src *Int4Array) assignToRecursive(value reflect.Value, index, dimension int) (int, error) {
+	switch kind := value.Kind(); kind {
+	case reflect.Array:
+		fallthrough
+	case reflect.Slice:
+		if len(src.Dimensions) == dimension {
+			break
+		}
+
+		length := int(src.Dimensions[dimension].Length)
+		if reflect.Array == kind {
+			typ := value.Type()
+			if typ.Len() != length {
+				return 0, fmt.Errorf("expected size %d array, but %s has size %d array", length, typ, typ.Len())
+			}
+			value.Set(reflect.New(typ).Elem())
+		} else {
+			value.Set(reflect.MakeSlice(value.Type(), length, length))
+		}
+
+		var err error
+		for i := 0; i < length; i++ {
+			index, err = src.assignToRecursive(value.Index(i), index, dimension+1)
+			if err != nil {
+				return 0, err
+			}
+		}
+
+		return index, nil
+	}
+	if len(src.Dimensions) != dimension {
+		return 0, fmt.Errorf("incorrect dimensions, expected %d, found %d", len(src.Dimensions), dimension)
+	}
+	if !value.CanAddr() {
+		return 0, fmt.Errorf("cannot assign all values from Int4Array")
+	}
+	addr := value.Addr()
+	if !addr.CanInterface() {
+		return 0, fmt.Errorf("cannot assign all values from Int4Array")
+	}
+	if err := src.Elements[index].AssignTo(addr.Interface()); err != nil {
+		return 0, err
+	}
+	index++
+	return index, nil
 }
 
 func (dst *Int4Array) DecodeText(ci *ConnInfo, src []byte) error {
@@ -550,7 +717,7 @@ func (dst *Int4Array) DecodeText(ci *ConnInfo, src []byte) error {
 		for i, s := range uta.Elements {
 			var elem Int4
 			var elemSrc []byte
-			if s != "NULL" {
+			if s != "NULL" || uta.Quoted[i] {
 				elemSrc = []byte(s)
 			}
 			err = elem.DecodeText(ci, elemSrc)
@@ -681,7 +848,7 @@ func (src Int4Array) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	if dt, ok := ci.DataTypeForName("int4"); ok {
 		arrayHeader.ElementOID = int32(dt.OID)
 	} else {
-		return nil, errors.Errorf("unable to find oid for type name %v", "int4")
+		return nil, fmt.Errorf("unable to find oid for type name %v", "int4")
 	}
 
 	for i := range src.Elements {
@@ -725,7 +892,7 @@ func (dst *Int4Array) Scan(src interface{}) error {
 		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return errors.Errorf("cannot scan %T", src)
+	return fmt.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.

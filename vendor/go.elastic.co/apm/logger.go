@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package apm
+package apm // import "go.elastic.co/apm"
 
 // Logger is an interface for logging, used by the tracer
 // to log tracer errors and other interesting events.

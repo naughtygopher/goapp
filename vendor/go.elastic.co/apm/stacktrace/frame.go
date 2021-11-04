@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package stacktrace
+package stacktrace // import "go.elastic.co/apm/stacktrace"
 
 // Frame describes a stack frame.
 type Frame struct {

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build linux
 // +build linux
 
 package apmhostutil
@@ -44,7 +45,7 @@ var (
 
 	kubepodsRegexp = regexp.MustCompile(
 		"" +
-			`(?:^/kubepods/[^/]+/pod([^/]+)/$)|` +
+			`(?:^/kubepods[\S]*/pod([^/]+)/$)|` +
 			`(?:^/kubepods\.slice/kubepods-[^/]+\.slice/kubepods-[^/]+-pod([^/]+)\.slice/$)`,
 	)
 

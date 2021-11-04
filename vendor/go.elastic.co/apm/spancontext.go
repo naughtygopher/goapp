@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package apm
+package apm // import "go.elastic.co/apm"
 
 import (
 	"fmt"
@@ -32,9 +32,15 @@ type SpanContext struct {
 	model                model.SpanContext
 	destination          model.DestinationSpanContext
 	destinationService   model.DestinationServiceSpanContext
+	destinationCloud     model.DestinationCloudSpanContext
+	message              model.MessageSpanContext
 	databaseRowsAffected int64
 	database             model.DatabaseSpanContext
 	http                 model.HTTPSpanContext
+
+	// If SetDestinationService has been called, we do not auto-set its
+	// resource value on span end.
+	setDestinationServiceCalled bool
 }
 
 // DatabaseSpanContext holds database span context.
@@ -56,7 +62,7 @@ type DatabaseSpanContext struct {
 // DestinationServiceSpanContext holds destination service span span.
 type DestinationServiceSpanContext struct {
 	// Name holds a name for the destination service, which may be used
-	// for grouping and labeling in service maps.
+	// for grouping and labeling in service maps. Deprecated.
 	Name string
 
 	// Resource holds an identifier for a destination service resource,
@@ -64,9 +70,23 @@ type DestinationServiceSpanContext struct {
 	Resource string
 }
 
+// DestinationCloudSpanContext holds contextual information about a
+// destination cloud.
+type DestinationCloudSpanContext struct {
+	// Region holds the destination cloud region.
+	Region string
+}
+
+// MessageSpanContext holds contextual information about a message.
+type MessageSpanContext struct {
+	// QueueName holds the message queue name.
+	QueueName string
+}
+
 func (c *SpanContext) build() *model.SpanContext {
 	switch {
 	case len(c.model.Tags) != 0:
+	case c.model.Message != nil:
 	case c.model.Database != nil:
 	case c.model.HTTP != nil:
 	case c.model.Destination != nil:
@@ -168,6 +188,10 @@ func (c *SpanContext) SetHTTPRequest(req *http.Request) {
 }
 
 // SetHTTPStatusCode records the HTTP response status code.
+//
+// If, when the transaction ends, its Outcome field has not
+// been explicitly set, it will be set based on the status code:
+// "success" if statusCode < 400, and "failure" otherwise.
 func (c *SpanContext) SetHTTPStatusCode(statusCode int) {
 	c.http.StatusCode = statusCode
 	c.model.HTTP = &c.http
@@ -175,7 +199,7 @@ func (c *SpanContext) SetHTTPStatusCode(statusCode int) {
 
 // SetDestinationAddress sets the destination address and port in the context.
 //
-// SetDestinationAddress has no effect when called when an empty addr.
+// SetDestinationAddress has no effect when called with an empty addr.
 func (c *SpanContext) SetDestinationAddress(addr string, port int) {
 	if addr != "" {
 		c.destination.Address = truncateString(addr)
@@ -184,10 +208,49 @@ func (c *SpanContext) SetDestinationAddress(addr string, port int) {
 	}
 }
 
+// SetMessage sets the message info in the context.
+//
+// message.Name is required. If it is empty, then SetMessage is a no-op.
+func (c *SpanContext) SetMessage(message MessageSpanContext) {
+	if message.QueueName == "" {
+		return
+	}
+	c.message.Queue = &model.MessageQueueSpanContext{
+		Name: truncateString(message.QueueName),
+	}
+	c.model.Message = &c.message
+}
+
 // SetDestinationService sets the destination service info in the context.
+//
+// Both service.Name and service.Resource are required. If either is empty,
+// then SetDestinationService is a no-op.
 func (c *SpanContext) SetDestinationService(service DestinationServiceSpanContext) {
+	c.setDestinationServiceCalled = true
+	if service.Resource == "" {
+		return
+	}
 	c.destinationService.Name = truncateString(service.Name)
 	c.destinationService.Resource = truncateString(service.Resource)
 	c.destination.Service = &c.destinationService
 	c.model.Destination = &c.destination
+}
+
+// SetDestinationCloud sets the destination cloud info in the context.
+func (c *SpanContext) SetDestinationCloud(cloud DestinationCloudSpanContext) {
+	c.destinationCloud.Region = truncateString(cloud.Region)
+	c.destination.Cloud = &c.destinationCloud
+	c.model.Destination = &c.destination
+}
+
+// outcome returns the outcome to assign to the associated span, based on
+// context (e.g. HTTP status code).
+func (c *SpanContext) outcome() string {
+	if c.http.StatusCode != 0 {
+		if c.http.StatusCode < 400 {
+			return "success"
+		}
+		return "failure"
+	}
+	return ""
 }

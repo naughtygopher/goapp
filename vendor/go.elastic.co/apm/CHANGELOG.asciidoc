@@ -21,13 +21,99 @@ endif::[]
 [[unreleased]]
 === Unreleased
 
-https://github.com/elastic/apm-agent-go/compare/v1.8.0...master[View commits]
+https://github.com/elastic/apm-agent-go/compare/v1.14.0...master[View commits]
 
 [[release-notes-1.x]]
 === Go Agent version 1.x
 
+[[release-notes-1.14.0]]
+==== 1.14.0 - 2021/09/22
+
+- span: automatically infer `destination.service.resource` information when the span is an exit span and deprecate `destination.service.name` and `destination.service.type` {pull}1003[#(1003)]
+- module/apmhttp: add apmhttp.WithClientSpanType ClientOption to set the span type of http client requests {pull}1106[#(1106)]
+- module/apmazure: introduce instrumentation module for Azure blob, queue, and file storage {pull}1109[#(1109)]
+- module/apmelasticsearch: propagete `Traceparent` and `Tracestate` headers to Elasticsearch {pull}1002[#(1002)]
+- module/apmfiber: introduce instrumentation module for Fiber web framework {pull}999[#(999)]
+- module/apmawssdkgo: fix a bug where the module would panic when an unsupported service is used {pull}1006[#(1006)]
+- module/apmfasthttp: report the correct HTTP Status Code instead of always reporting `200` {pull}1104[#(1104)]
+
+[[release-notes-1.13.1]]
+==== 1.13.1 - 2021/08/05
+
+- Fix concurrency bugs in breakdown metrics and module/apmhttp.WithClientTrace {pull}997[#(997)]
+
+[[release-notes-1.13.0]]
+==== 1.13.0 - 2021/07/28
+
+- Prefer w3c traceparent header over legacy elastic-apm-traceparent {pull}963[#(963)]
+- Context.SetUsername now takes precedence over HTTP user info from Context.SetHTTPRequest {pull}973[#(973)]
+- module/apmhttp: fix a potential panic in WithClientTrace {pull}989[#(989)]
+- add support for go-restful v3 {pull}968[#(968)]
+- add fasthttp support {pull}957[#(957)]
+- module/apmgin: support multiple routes using the same handler {pull}983[#(983)]
+- add apm-server CA cert functionality {pull}982[#(982)]
+
+https://github.com/elastic/apm-agent-go/releases/tag/v1.12.0[View release]
+
+[[release-notes-1.12.0]]
+==== 1.12.0 - 2021/05/25
+
+https://github.com/elastic/apm-agent-go/releases/tag/v1.12.0[View release]
+
+- module/apmgrpc: fix status code to outcome mapping {pull}902[#(902)]
+- module/apmawssdkgo: add support for instrumenting s3 RPC calls {pull}927[#(927)]
+- module/apmawssdkgo: add support for instrumenting dynamodb RPC calls {pull}928[#(928)]
+- SpanContext.SetDestinationService is a no-op if either Name or Resource is empty {pull}931[#(931)]
+- module/apmawssdkgo: add support for instrumenting sqs RPC calls {pull}933[#(933)]
+- module/apmawssdkgo: add support for instrumenting sns RPC calls {pull}938[#(938)]
+- Parse "//" comments in SQL/CQL {pull}937[#(937)]
+- Fix CaptureError to capture the request body when ELASTIC_APM_CAPTURE_BODY is enabled {pull}906[#(906)]
+- module/apmgrpc: record underlying HTTP/2 context {pull}904[#(904)]
+- module/apmot: handle http.host tag as url.Host {pull}954[#(954)]
+- apm: add add ParentID methods to Span and Transaction {pull}956[#(956)]
+
+[[release-notes-1.11.0]]
+==== 1.11.0 - 2021/02/01
+
+https://github.com/elastic/apm-agent-go/releases/tag/v1.11.0[View release]
+
+- Make TRANSACTION_IGNORE_URLS dynamically configurable: {pull}872[#872]
+
+[[release-notes-1.10.0]]
+==== 1.10.0 - 2021/01/20
+
+https://github.com/elastic/apm-agent-go/releases/tag/v1.10.0[View release]
+
+- module/apmsql: add tracingDriver.Unwrap method to get underlying driver {pull}#849[#(849)]
+- module/apmgopgv10: add support for github.com/go-pg/pg/v10 {pull}857[(#857)]
+- Enable central configuration of "sanitize_field_names" {pull}856[(#856)]
+- module/apmgrpc: set span destination context {pull}861[(#861)]
+
+[[release-notes-1.9.0]]
+==== 1.9.0 - 2020/11/02
+
+https://github.com/elastic/apm-agent-go/releases/tag/v1.9.0[View release]
+
+- module/apmgoredisv8: introduce new package to support go-redis v8 {pull}780[#(780)]
+- module/apmhttp: introduce httptrace client option {pull}788[#(788)]
+- module/apmsql: add support for database/sql/driver.Validator {pull}791[#(791)]
+- Record sample rate on transactions and spans, propagate through `tracestate` {pull}804[#(804)]
+- module/apmredigo: change redigo dependency to v1.8.2 {pull}807[#(807)]
+- Deprecate IGNORE_URLS, replace with TRANSACTION_IGNORE_URLS {pull}811[(#811)]
+- Tracer.Close now waits for the transport goroutine to end before returning {pull}816[#(816)]
+- Relax Kubernetes pod UID discovery rules {pull}819[#(819)]
+- Add transaction and span outcome {pull}820[#(820)]
+- Add cloud metadata, configurable with ELASTIC_APM_CLOUD_PROVIDER {pull}823[#(823)]
+- Round ELASTIC_APM_SAMPLING_RATE with 4 digits precision {pull}828[#(828)]
+- module/apmhttp: implement io.ReaderFrom in wrapped http.ResponseWriter {pull}830[#(830)]
+- Fixed Transaction.Discard so that it sets TransactionData to nil {pull}836[#(836)]
+- module/apmsql/pgxv4: add support for pgx driver {pull}831[#(831)]
+- module/apmgormv2: add support for gorm.io (GORM v2) {pull}825[#(825)]
+
 [[release-notes-1.8.0]]
 ==== 1.8.0 - 2020/05/06
+
+https://github.com/elastic/apm-agent-go/releases/tag/v1.8.0[View release]
 
 - Add "recording" config option, to dynamically disable event recording {pull}737[(#737)]
 - Enable central configuration of "stack_frames_min_duration" and "stack_trace_limit" {pull}742[(#742)]
@@ -36,6 +122,8 @@ https://github.com/elastic/apm-agent-go/compare/v1.8.0...master[View commits]
 
 [[release-notes-1.7.2]]
 ==== 1.7.2 - 2020/03/19
+
+https://github.com/elastic/apm-agent-go/releases/tag/v1.7.2[View release]
 
 - Update cucumber/godog to 0.8.1 {pull}733[(#733)]
 

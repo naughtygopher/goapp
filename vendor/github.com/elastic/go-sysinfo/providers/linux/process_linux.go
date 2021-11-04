@@ -253,6 +253,29 @@ func (p *process) User() (types.UserInfo, error) {
 	return user, nil
 }
 
+// NetworkStats reports network stats for an individual PID.
+func (p *process) NetworkCounters() (*types.NetworkCountersInfo, error) {
+	snmpRaw, err := ioutil.ReadFile(p.path("net/snmp"))
+	if err != nil {
+		return nil, err
+	}
+	snmp, err := getNetSnmpStats(snmpRaw)
+	if err != nil {
+		return nil, err
+	}
+
+	netstatRaw, err := ioutil.ReadFile(p.path("net/netstat"))
+	if err != nil {
+		return nil, err
+	}
+	netstat, err := getNetstatStats(netstatRaw)
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.NetworkCountersInfo{SNMP: snmp, Netstat: netstat}, nil
+}
+
 func ticksToDuration(ticks uint64) time.Duration {
 	seconds := float64(ticks) / float64(userHz) * float64(time.Second)
 	return time.Duration(int64(seconds))

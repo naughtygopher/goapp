@@ -78,14 +78,15 @@ adequately cover the code using `go test -cover`.
 
 ### Release procedure
 
-1. Update version.go and internal/apmversion/version.go, and then run "make update-modules"
-1. Update [`CHANGELOG.asciidoc`](changelog.asciidoc), by adding a new version heading (`==== 1.x.x - yyyy/MM/dd`) and changing the base tag of the Unreleased comparison URL
-1. For major and minor releases, update the EOL table in [`upgrading.asciidoc`](docs/upgrading.asciidoc).
-1. Merge changes into github.com/elastic/apm-agent-go@master
-1. Create tags: vN.N.N, and module/$MODULE/vN.N.N for each instrumentation module
+The Go APM Agent and the APM Server do not have a direct dependency where the APM Server needs to be released before the Go APM Agent is released. Even though, they currently have an independent versioning scheme, we try and release the APM Server and Agents closely so new features and bug fixes are available as soon as possible.
 
-	scripts/tagversion.sh
+For example, APM Server version `7.15.0` corresponds with the Go APM Agent version `1.14.0` and so on.
 
-1. Create release on GitHub
-
-	hub release -d vN.N.N
+1. Update `version.go` and `internal/apmversion/version.go`, and then run `make update-modules`
+2. Update [`CHANGELOG.asciidoc`](changelog.asciidoc), by adding a new version heading (`==== 1.x.x - yyyy/MM/dd`) and changing the base tag of the Unreleased comparison URL
+3. For major and minor releases, update the EOL table in [`upgrading.asciidoc`](docs/upgrading.asciidoc).
+4. Merge changes into github.com/elastic/apm-agent-go@master
+5. Create tags: vN.N.N, and module/$MODULE/vN.N.N for each instrumentation module with the script `scripts/tagversion.sh`. Execute the output manually in your terminal. Note: The output assumes `upstream` is the name of the upstream remote.
+6. Create release on GitHub: `gh release create vN.N.N`
+7. Reset the latest major branch (1.x, 2.x etc) to point to the new release tag, e.g. git branch -f N.x vN.n.n
+8. Update the latest major branch on upstream with `git push upstream <major_branch>`

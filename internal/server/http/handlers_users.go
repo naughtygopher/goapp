@@ -6,7 +6,7 @@ import (
 
 	"github.com/bnkamalesh/errors"
 	"github.com/bnkamalesh/goapp/internal/users"
-	"github.com/bnkamalesh/webgo/v4"
+	"github.com/bnkamalesh/webgo/v6"
 )
 
 // CreateUser is the HTTP handler to create a new user

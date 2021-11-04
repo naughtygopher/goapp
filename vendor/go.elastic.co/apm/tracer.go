@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package apm
+package apm // import "go.elastic.co/apm"
 
 import (
 	"bytes"
@@ -103,6 +103,7 @@ type TracerOptions struct {
 	sampler               Sampler
 	sanitizedFieldNames   wildcard.Matchers
 	disabledMetrics       wildcard.Matchers
+	ignoreTransactionURLs wildcard.Matchers
 	captureHeaders        bool
 	captureBody           CaptureBodyMode
 	spanFramesMinDuration time.Duration
@@ -246,6 +247,7 @@ func (opts *TracerOptions) initDefaults(continueOnError bool) error {
 	opts.sampler = sampler
 	opts.sanitizedFieldNames = initialSanitizedFieldNames()
 	opts.disabledMetrics = initialDisabledMetrics()
+	opts.ignoreTransactionURLs = initialIgnoreTransactionURLs()
 	opts.breakdownMetrics = breakdownMetricsEnabled
 	opts.captureHeaders = captureHeaders
 	opts.captureBody = captureBody
@@ -342,6 +344,12 @@ type Tracer struct {
 // This is equivalent to calling NewTracerOptions with a
 // TracerOptions having ServiceName and ServiceVersion set to
 // the provided arguments.
+//
+// NOTE when this package is imported, DefaultTracer is initialised
+// using environment variables for configuration. When creating a
+// tracer with NewTracer or NewTracerOptions, you should close
+// apm.DefaultTracer if it is not needed, e.g. by calling
+// apm.DefaultTracer.Close() in an init function.
 func NewTracer(serviceName, serviceVersion string) (*Tracer, error) {
 	return NewTracerOptions(TracerOptions{
 		ServiceName:    serviceName,
@@ -352,6 +360,12 @@ func NewTracer(serviceName, serviceVersion string) (*Tracer, error) {
 // NewTracerOptions returns a new Tracer using the provided options.
 // See TracerOptions for details on the options, and their default
 // values.
+//
+// NOTE when this package is imported, DefaultTracer is initialised
+// using environment variables for configuration. When creating a
+// tracer with NewTracer or NewTracerOptions, you should close
+// apm.DefaultTracer if it is not needed, e.g. by calling
+// apm.DefaultTracer.Close() in an init function.
 func NewTracerOptions(opts TracerOptions) (*Tracer, error) {
 	if err := opts.initDefaults(false); err != nil {
 		return nil, err
@@ -400,6 +414,7 @@ func newTracer(opts TracerOptions) *Tracer {
 	})
 	t.setLocalInstrumentationConfig(envTransactionSampleRate, func(cfg *instrumentationConfigValues) {
 		cfg.sampler = opts.sampler
+		cfg.extendedSampler, _ = opts.sampler.(ExtendedSampler)
 	})
 	t.setLocalInstrumentationConfig(envSpanFramesMinDuration, func(cfg *instrumentationConfigValues) {
 		cfg.spanFramesMinDuration = opts.spanFramesMinDuration
@@ -410,6 +425,20 @@ func newTracer(opts TracerOptions) *Tracer {
 	t.setLocalInstrumentationConfig(envUseElasticTraceparentHeader, func(cfg *instrumentationConfigValues) {
 		cfg.propagateLegacyHeader = opts.propagateLegacyHeader
 	})
+	t.setLocalInstrumentationConfig(envSanitizeFieldNames, func(cfg *instrumentationConfigValues) {
+		cfg.sanitizedFieldNames = opts.sanitizedFieldNames
+	})
+	t.setLocalInstrumentationConfig(envIgnoreURLs, func(cfg *instrumentationConfigValues) {
+		cfg.ignoreTransactionURLs = opts.ignoreTransactionURLs
+	})
+	if apmlog.DefaultLogger != nil {
+		defaultLogLevel := apmlog.DefaultLogger.Level()
+		t.setLocalInstrumentationConfig(apmlog.EnvLogLevel, func(cfg *instrumentationConfigValues) {
+			// Revert to the original, local, log level when
+			// the centrally defined log level is removed.
+			apmlog.DefaultLogger.SetLevel(defaultLogLevel)
+		})
+	}
 
 	if !opts.active {
 		t.active = 0
@@ -426,7 +455,6 @@ func newTracer(opts TracerOptions) *Tracer {
 		cfg.metricsInterval = opts.metricsInterval
 		cfg.requestDuration = opts.requestDuration
 		cfg.requestSize = opts.requestSize
-		cfg.sanitizedFieldNames = opts.sanitizedFieldNames
 		cfg.disabledMetrics = opts.disabledMetrics
 		cfg.preContext = defaultPreContext
 		cfg.postContext = defaultPostContext
@@ -452,7 +480,6 @@ type tracerConfig struct {
 	metricsGatherers        []MetricsGatherer
 	contextSetter           stacktrace.ContextSetter
 	preContext, postContext int
-	sanitizedFieldNames     wildcard.Matchers
 	disabledMetrics         wildcard.Matchers
 	cpuProfileDuration      time.Duration
 	cpuProfileInterval      time.Duration
@@ -559,6 +586,10 @@ func (t *Tracer) SetLogger(logger Logger) {
 // of the the supplied patterns will have their values redacted. If
 // SetSanitizedFieldNames is called with no arguments, then no fields
 // will be redacted.
+//
+// Configuration via Kibana takes precedence over local configuration, so
+// if sanitized_field_names has been configured via Kibana, this call will
+// not have any effect until/unless that configuration has been removed.
 func (t *Tracer) SetSanitizedFieldNames(patterns ...string) error {
 	var matchers wildcard.Matchers
 	if len(patterns) != 0 {
@@ -567,8 +598,17 @@ func (t *Tracer) SetSanitizedFieldNames(patterns ...string) error {
 			matchers[i] = configutil.ParseWildcardPattern(p)
 		}
 	}
-	t.sendConfigCommand(func(cfg *tracerConfig) {
+	t.setLocalInstrumentationConfig(envSanitizeFieldNames, func(cfg *instrumentationConfigValues) {
 		cfg.sanitizedFieldNames = matchers
+	})
+	return nil
+}
+
+// SetIgnoreTransactionURLs sets the wildcard patterns that will be used to
+// ignore transactions with matching URLs.
+func (t *Tracer) SetIgnoreTransactionURLs(pattern string) error {
+	t.setLocalInstrumentationConfig(envIgnoreURLs, func(cfg *instrumentationConfigValues) {
+		cfg.ignoreTransactionURLs = configutil.ParseWildcardPatterns(pattern)
 	})
 	return nil
 }
@@ -652,6 +692,7 @@ func (t *Tracer) SetRecording(r bool) {
 func (t *Tracer) SetSampler(s Sampler) {
 	t.setLocalInstrumentationConfig(envTransactionSampleRate, func(cfg *instrumentationConfigValues) {
 		cfg.sampler = s
+		cfg.extendedSampler, _ = s.(ExtendedSampler)
 	})
 }
 
@@ -751,8 +792,13 @@ func (t *Tracer) loop() {
 	// Run another goroutine to perform the blocking requests,
 	// communicating with the tracer loop to obtain stream data.
 	sendStreamRequest := make(chan time.Duration)
-	defer close(sendStreamRequest)
+	done := make(chan struct{})
+	defer func() {
+		close(sendStreamRequest)
+		<-done
+	}()
 	go func() {
+		defer close(done)
 		jitterRand := rand.New(rand.NewSource(time.Now().UnixNano()))
 		for gracePeriod := range sendStreamRequest {
 			if gracePeriod > 0 {
@@ -1169,6 +1215,10 @@ func (t *Tracer) encodeRequestMetadata(json *fastjson.Writer) {
 	t.process.MarshalFastJSON(json)
 	json.RawString(`,"service":`)
 	service.MarshalFastJSON(json)
+	if cloud := getCloudMetadata(); cloud != nil {
+		json.RawString(`,"cloud":`)
+		cloud.MarshalFastJSON(json)
+	}
 	if len(globalLabels) > 0 {
 		json.RawString(`,"labels":`)
 		globalLabels.MarshalFastJSON(json)

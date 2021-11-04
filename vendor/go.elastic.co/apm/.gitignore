@@ -3,3 +3,4 @@
 *.out
 docs/html
 build
+.idea

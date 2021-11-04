@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 
 	"github.com/jackc/pgio"
 )
@@ -151,7 +152,14 @@ func (src Bind) MarshalJSON() ([]byte, error) {
 			continue
 		}
 
-		if src.ParameterFormatCodes[i] == 0 {
+		textFormat := true
+		if len(src.ParameterFormatCodes) == 1 {
+			textFormat = src.ParameterFormatCodes[0] == 0
+		} else if len(src.ParameterFormatCodes) > 1 {
+			textFormat = src.ParameterFormatCodes[i] == 0
+		}
+
+		if textFormat {
 			formattedParameters[i] = map[string]string{"text": string(p)}
 		} else {
 			formattedParameters[i] = map[string]string{"binary": hex.EncodeToString(p)}
@@ -173,4 +181,36 @@ func (src Bind) MarshalJSON() ([]byte, error) {
 		Parameters:           formattedParameters,
 		ResultFormatCodes:    src.ResultFormatCodes,
 	})
+}
+
+// UnmarshalJSON implements encoding/json.Unmarshaler.
+func (dst *Bind) UnmarshalJSON(data []byte) error {
+	// Ignore null, like in the main JSON package.
+	if string(data) == "null" {
+		return nil
+	}
+
+	var msg struct {
+		DestinationPortal    string
+		PreparedStatement    string
+		ParameterFormatCodes []int16
+		Parameters           []map[string]string
+		ResultFormatCodes    []int16
+	}
+	err := json.Unmarshal(data, &msg)
+	if err != nil {
+		return err
+	}
+	dst.DestinationPortal = msg.DestinationPortal
+	dst.PreparedStatement = msg.PreparedStatement
+	dst.ParameterFormatCodes = msg.ParameterFormatCodes
+	dst.Parameters = make([][]byte, len(msg.Parameters))
+	dst.ResultFormatCodes = msg.ResultFormatCodes
+	for n, parameter := range msg.Parameters {
+		dst.Parameters[n], err = getValueFromJSON(parameter)
+		if err != nil {
+			return fmt.Errorf("cannot get param %d: %w", n, err)
+		}
+	}
+	return nil
 }

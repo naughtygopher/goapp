@@ -1,3 +1,87 @@
+# 4.13.0 (July 24, 2021)
+
+* Trimmed pseudo-dependencies in Go modules from other packages tests
+* Upgrade pgconn -- context cancellation no longer will return a net.Error
+* Support time durations for simple protocol (Michael Darr)
+
+# 4.12.0 (July 10, 2021)
+
+* ResetSession hook is called before a connection is reused from pool for another query (Dmytro Haranzha)
+* stdlib: Add RandomizeHostOrderFunc (dkinder)
+* stdlib: add OptionBeforeConnect (dkinder)
+* stdlib: Do not reuse ConnConfig strings (Andrew Kimball)
+* stdlib: implement Conn.ResetSession (Jonathan Amsterdam)
+* Upgrade pgconn to v1.9.0
+* Upgrade pgtype to v1.8.0
+
+# 4.11.0 (March 25, 2021)
+
+* Add BeforeConnect callback to pgxpool.Config (Robert Froehlich)
+* Add Ping method to pgxpool.Conn (davidsbond)
+* Added a kitlog level log adapter (Fabrice Aneche)
+* Make ScanArgError public to allow identification of offending column (Pau Sanchez)
+* Add *pgxpool.AcquireFunc
+* Add BeginFunc and BeginTxFunc
+* Add prefer_simple_protocol to connection string
+* Add logging on CopyFrom (Patrick Hemmer)
+* Add comment support when sanitizing SQL queries (Rusakow Andrew)
+* Do not panic on double close of pgxpool.Pool (Matt Schultz)
+* Avoid panic on SendBatch on closed Tx (Matt Schultz)
+* Update pgconn to v1.8.1
+* Update pgtype to v1.7.0
+
+# 4.10.1 (December 19, 2020)
+
+* Fix panic on Query error with nil stmtcache.
+
+# 4.10.0 (December 3, 2020)
+
+* Add CopyFromSlice to simplify CopyFrom usage (Egon Elbre)
+* Remove broken prepared statements from stmtcache (Ethan Pailes)
+* stdlib: consider any Ping error as fatal
+* Update puddle to v1.1.3 - this fixes an issue where concurrent Acquires can hang when a connection cannot be established
+* Update pgtype to v1.6.2
+
+# 4.9.2 (November 3, 2020)
+
+The underlying library updates fix an issue where appending to a scanned slice could corrupt other data.
+
+* Update pgconn to v1.7.2
+* Update pgproto3 to v2.0.6
+
+# 4.9.1 (October 31, 2020)
+
+* Update pgconn to v1.7.1
+* Update pgtype to v1.6.1
+* Fix SendBatch of all prepared statements with statement cache disabled
+
+# 4.9.0 (September 26, 2020)
+
+* pgxpool now waits for connection cleanup to finish before making room in pool for another connection. This prevents temporarily exceeding max pool size.
+* Fix when scanning a column to nil to skip it on the first row but scanning it to a real value on a subsequent row.
+* Fix prefer simple protocol with prepared statements. (Jinzhu)
+* Fix FieldDescriptions not being available on Rows before calling Next the first time.
+* Various minor fixes in updated versions of pgconn, pgtype, and puddle.
+
+# 4.8.1 (July 29, 2020)
+
+* Update pgconn to v1.6.4
+    * Fix deadlock on error after CommandComplete but before ReadyForQuery
+    * Fix panic on parsing DSN with trailing '='
+
+# 4.8.0 (July 22, 2020)
+
+* All argument types supported by native pgx should now also work through database/sql
+* Update pgconn to v1.6.3
+* Update pgtype to v1.4.2
+
+# 4.7.2 (July 14, 2020)
+
+* Improve performance of Columns() (zikaeroh)
+* Fix fatal Commit() failure not being considered fatal
+* Update pgconn to v1.6.2
+* Update pgtype to v1.4.1
+
 # 4.7.1 (June 29, 2020)
 
 * Fix stdlib decoding error with certain order and combination of fields

@@ -40,6 +40,7 @@ func OperatingSystem() (*types.OSInfo, error) {
 	defer k.Close()
 
 	osInfo := &types.OSInfo{
+		Type:     "windows",
 		Family:   "windows",
 		Platform: "windows",
 	}

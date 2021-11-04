@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package apmhttp
+package apmhttp // import "go.elastic.co/apm/module/apmhttp"
 
 import (
 	"io"
@@ -59,6 +59,7 @@ func WrapRoundTripper(r http.RoundTripper, o ...ClientOption) http.RoundTripper 
 		r:              r,
 		requestName:    ClientRequestName,
 		requestIgnorer: IgnoreNone,
+		spanType:       "external.http",
 	}
 	for _, o := range o {
 		o(rt)
@@ -70,6 +71,8 @@ type roundTripper struct {
 	r              http.RoundTripper
 	requestName    RequestNameFunc
 	requestIgnorer RequestIgnorerFunc
+	traceRequests  bool
+	spanType       string
 }
 
 // RoundTrip delegates to r.r, emitting a span if req's context
@@ -96,15 +99,19 @@ func (r *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	propagateLegacyHeader := tx.ShouldPropagateLegacyHeader()
 	traceContext := tx.TraceContext()
 	if !traceContext.Options.Recorded() {
-		r.setHeaders(req, traceContext, propagateLegacyHeader)
+		SetHeaders(req, traceContext, propagateLegacyHeader)
 		return r.r.RoundTrip(req)
 	}
 
 	name := r.requestName(req)
-	span := tx.StartSpan(name, "external.http", apm.SpanFromContext(ctx))
+	span := tx.StartSpan(name, r.spanType, apm.SpanFromContext(ctx))
+	var rt *requestTracer
 	if !span.Dropped() {
 		traceContext = span.TraceContext()
 		ctx = apm.ContextWithSpan(ctx, span)
+		if r.traceRequests {
+			ctx, rt = withClientTrace(ctx, tx, span)
+		}
 		req = RequestWithContext(ctx, req)
 		span.Context.SetHTTPRequest(req)
 	} else {
@@ -112,20 +119,24 @@ func (r *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		span = nil
 	}
 
-	r.setHeaders(req, traceContext, propagateLegacyHeader)
+	SetHeaders(req, traceContext, propagateLegacyHeader)
 	resp, err := r.r.RoundTrip(req)
 	if span != nil {
 		if err != nil {
+			if rt != nil {
+				rt.end()
+			}
 			span.End()
 		} else {
 			span.Context.SetHTTPStatusCode(resp.StatusCode)
-			resp.Body = &responseBody{span: span, body: resp.Body}
+			resp.Body = &responseBody{span: span, body: resp.Body, requestTracer: rt}
 		}
 	}
 	return resp, err
 }
 
-func (r *roundTripper) setHeaders(req *http.Request, traceContext apm.TraceContext, propagateLegacyHeader bool) {
+// SetHeaders sets traceparent and tracestate headers on an http request.
+func SetHeaders(req *http.Request, traceContext apm.TraceContext, propagateLegacyHeader bool) {
 	headerValue := FormatTraceparentHeader(traceContext)
 	if propagateLegacyHeader {
 		req.Header.Set(ElasticTraceparentHeader, headerValue)
@@ -157,8 +168,9 @@ func (r *roundTripper) CancelRequest(req *http.Request) {
 }
 
 type responseBody struct {
-	span *apm.Span
-	body io.ReadCloser
+	span          *apm.Span
+	requestTracer *requestTracer
+	body          io.ReadCloser
 }
 
 // Close closes the response body, and ends the span if it hasn't already been ended.
@@ -180,6 +192,9 @@ func (b *responseBody) Read(p []byte) (n int, err error) {
 func (b *responseBody) endSpan() {
 	addr := (*unsafe.Pointer)(unsafe.Pointer(&b.span))
 	if old := atomic.SwapPointer(addr, nil); old != nil {
+		if b.requestTracer != nil {
+			b.requestTracer.end()
+		}
 		(*apm.Span)(old).End()
 	}
 }
@@ -196,5 +211,14 @@ func WithClientRequestName(r RequestNameFunc) ClientOption {
 
 	return ClientOption(func(rt *roundTripper) {
 		rt.requestName = r
+	})
+}
+
+// WithClientSpanType sets the span type for HTTP client requests.
+//
+// Defaults to "external.http".
+func WithClientSpanType(spanType string) ClientOption {
+	return ClientOption(func(rt *roundTripper) {
+		rt.spanType = spanType
 	})
 }

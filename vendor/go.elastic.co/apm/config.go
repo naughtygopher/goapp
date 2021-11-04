@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package apm
+package apm // import "go.elastic.co/apm"
 
 import (
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"go.elastic.co/apm/internal/apmlog"
 	"go.elastic.co/apm/internal/configutil"
 	"go.elastic.co/apm/internal/wildcard"
 	"go.elastic.co/apm/model"
@@ -52,11 +54,14 @@ const (
 	envAPIBufferSize               = "ELASTIC_APM_API_BUFFER_SIZE"
 	envMetricsBufferSize           = "ELASTIC_APM_METRICS_BUFFER_SIZE"
 	envDisableMetrics              = "ELASTIC_APM_DISABLE_METRICS"
+	envIgnoreURLs                  = "ELASTIC_APM_TRANSACTION_IGNORE_URLS"
+	deprecatedEnvIgnoreURLs        = "ELASTIC_APM_IGNORE_URLS"
 	envGlobalLabels                = "ELASTIC_APM_GLOBAL_LABELS"
 	envStackTraceLimit             = "ELASTIC_APM_STACK_TRACE_LIMIT"
 	envCentralConfig               = "ELASTIC_APM_CENTRAL_CONFIG"
 	envBreakdownMetrics            = "ELASTIC_APM_BREAKDOWN_METRICS"
 	envUseElasticTraceparentHeader = "ELASTIC_APM_USE_ELASTIC_TRACEPARENT_HEADER"
+	envCloudProvider               = "ELASTIC_APM_CLOUD_PROVIDER"
 
 	// NOTE(axw) profiling environment variables are experimental.
 	// They may be removed in a future minor version without being
@@ -261,6 +266,14 @@ func initialDisabledMetrics() wildcard.Matchers {
 	return configutil.ParseWildcardPatternsEnv(envDisableMetrics, nil)
 }
 
+func initialIgnoreTransactionURLs() wildcard.Matchers {
+	matchers := configutil.ParseWildcardPatternsEnv(envIgnoreURLs, nil)
+	if len(matchers) == 0 {
+		matchers = configutil.ParseWildcardPatternsEnv(deprecatedEnvIgnoreURLs, nil)
+	}
+	return matchers
+}
+
 func initialStackTraceLimit() (int, error) {
 	value := os.Getenv(envStackTraceLimit)
 	if value == "" {
@@ -346,6 +359,11 @@ func (t *Tracer) updateRemoteConfig(logger WarningLogger, old, attrs map[string]
 					cfg.maxSpans = value
 				})
 			}
+		case envIgnoreURLs:
+			matchers := configutil.ParseWildcardPatterns(v)
+			updates = append(updates, func(cfg *instrumentationConfig) {
+				cfg.ignoreTransactionURLs = matchers
+			})
 		case envRecording:
 			recording, err := strconv.ParseBool(v)
 			if err != nil {
@@ -357,6 +375,11 @@ func (t *Tracer) updateRemoteConfig(logger WarningLogger, old, attrs map[string]
 					cfg.recording = recording
 				})
 			}
+		case envSanitizeFieldNames:
+			matchers := configutil.ParseWildcardPatterns(v)
+			updates = append(updates, func(cfg *instrumentationConfig) {
+				cfg.sanitizedFieldNames = matchers
+			})
 		case envSpanFramesMinDuration:
 			duration, err := configutil.ParseDuration(v)
 			if err != nil {
@@ -388,7 +411,24 @@ func (t *Tracer) updateRemoteConfig(logger WarningLogger, old, attrs map[string]
 			} else {
 				updates = append(updates, func(cfg *instrumentationConfig) {
 					cfg.sampler = sampler
+					cfg.extendedSampler, _ = sampler.(ExtendedSampler)
 				})
+			}
+		case apmlog.EnvLogLevel:
+			level, err := apmlog.ParseLogLevel(v)
+			if err != nil {
+				errorf("central config failure: %s", err)
+				delete(attrs, k)
+				continue
+			}
+			if apmlog.DefaultLogger != nil && apmlog.DefaultLogger == logger {
+				updates = append(updates, func(*instrumentationConfig) {
+					apmlog.DefaultLogger.SetLevel(level)
+				})
+			} else {
+				warningf("central config ignored: %s set to %s, but custom logger in use", k, v)
+				delete(attrs, k)
+				continue
 			}
 		default:
 			warningf("central config failure: unsupported config: %s", k)
@@ -456,6 +496,11 @@ func (t *Tracer) updateInstrumentationConfig(f func(cfg *instrumentationConfig))
 	}
 }
 
+// IgnoredTransactionURL returns whether the given transaction URL should be ignored
+func (t *Tracer) IgnoredTransactionURL(url *url.URL) bool {
+	return t.instrumentationConfig().ignoreTransactionURLs.MatchAny(url.String())
+}
+
 // instrumentationConfig holds current configuration values, as well as information
 // required to revert from remote to local configuration.
 type instrumentationConfig struct {
@@ -479,9 +524,12 @@ type instrumentationConfigValues struct {
 	recording             bool
 	captureBody           CaptureBodyMode
 	captureHeaders        bool
+	extendedSampler       ExtendedSampler
 	maxSpans              int
 	sampler               Sampler
 	spanFramesMinDuration time.Duration
 	stackTraceLimit       int
 	propagateLegacyHeader bool
+	sanitizedFieldNames   wildcard.Matchers
+	ignoreTransactionURLs wildcard.Matchers
 }

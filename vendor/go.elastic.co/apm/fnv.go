@@ -21,7 +21,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package apm
+package apm // import "go.elastic.co/apm"
 
 const (
 	offset64 = 14695981039346656037

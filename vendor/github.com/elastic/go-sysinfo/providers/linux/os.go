@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/joeshaw/multierror"
 	"github.com/pkg/errors"
 
 	"github.com/elastic/go-sysinfo/types"
@@ -145,6 +146,7 @@ func parseOSRelease(content []byte) (*types.OSInfo, error) {
 
 func makeOSInfo(osRelease map[string]string) (*types.OSInfo, error) {
 	os := &types.OSInfo{
+		Type:     "linux",
 		Platform: osRelease["ID"],
 		Name:     osRelease["NAME"],
 		Version:  osRelease["VERSION"],
@@ -195,6 +197,7 @@ func makeOSInfo(osRelease map[string]string) (*types.OSInfo, error) {
 }
 
 func findDistribRelease(baseDir string) (*types.OSInfo, error) {
+	var errs []error
 	matches, err := filepath.Glob(filepath.Join(baseDir, distribRelease))
 	if err != nil {
 		return nil, err
@@ -204,15 +207,19 @@ func findDistribRelease(baseDir string) (*types.OSInfo, error) {
 			continue
 		}
 
-		info, err := os.Lstat(path)
-		if err != nil || info.Size() == 0 {
+		info, err := os.Stat(path)
+		if err != nil || info.IsDir() || info.Size() == 0 {
 			continue
 		}
 
-		return getDistribRelease(path)
+		osInfo, err := getDistribRelease(path)
+		if err != nil {
+			errs = append(errs, errors.Wrapf(err, "in %s", path))
+			continue
+		}
+		return osInfo, err
 	}
-
-	return nil, errors.New("no /etc/<distrib>-release file found")
+	return nil, errors.Wrap(&multierror.MultiError{Errors: errs}, "no valid /etc/<distrib>-release file found")
 }
 
 func getDistribRelease(file string) (*types.OSInfo, error) {
@@ -238,7 +245,10 @@ func parseDistribRelease(platform string, content []byte) (*types.OSInfo, error)
 	var (
 		line = string(bytes.TrimSpace(content))
 		keys = distribReleaseRegexp.SubexpNames()
-		os   = &types.OSInfo{Platform: platform}
+		os   = &types.OSInfo{
+			Type:     "linux",
+			Platform: platform,
+		}
 	)
 
 	for i, m := range distribReleaseRegexp.FindStringSubmatch(line) {

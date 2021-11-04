@@ -5,13 +5,14 @@ GO_LICENSER_EXCLUDE=stacktrace/testdata
 check: precheck check-modules test
 
 .PHONY: precheck
-precheck: check-goimports check-lint check-vet check-dockerfile-testing check-licenses
+precheck: check-goimports check-lint check-vanity-import check-vet check-dockerfile-testing check-licenses model/marshal_fastjson.go scripts/Dockerfile-testing
 
 .PHONY: check-goimports
 .PHONY: check-dockerfile-testing
 .PHONY: check-lint
 .PHONY: check-licenses
 .PHONY: check-modules
+.PHONY: check-vanity-import
 ifeq ($(shell go run ./scripts/mingoversion.go -print 1.12),true)
 check-goimports:
 	sh scripts/check_goimports.sh
@@ -23,16 +24,20 @@ check-lint:
 	sh scripts/check_lint.sh
 
 check-licenses:
-	go-licenser -d $(patsubst %,-exclude %,$(GO_LICENSER_EXCLUDE)) .
+	go run github.com/elastic/go-licenser -d $(patsubst %,-exclude %,$(GO_LICENSER_EXCLUDE)) .
 
 check-modules:
 	go run scripts/genmod/main.go -check .
+
+check-vanity-import:
+	sh scripts/check_vanity.sh
 else
 check-goimports:
 check-dockerfile-testing:
 check-lint:
 check-licenses:
 check-modules:
+check-vanity-import:
 endif
 
 .PHONY: check-vet
@@ -79,3 +84,9 @@ endif
 .PHONY: update-licenses
 update-licenses:
 	go-licenser $(patsubst %, -exclude %, $(GO_LICENSER_EXCLUDE)) .
+
+model/marshal_fastjson.go: model/model.go
+	go generate ./model
+
+scripts/Dockerfile-testing: $(wildcard module/*)
+	go generate ./scripts

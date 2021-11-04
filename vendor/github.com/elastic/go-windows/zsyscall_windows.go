@@ -22,6 +22,8 @@ package windows
 import (
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 var _ unsafe.Pointer
@@ -52,10 +54,10 @@ func errnoErr(e syscall.Errno) error {
 }
 
 var (
-	modkernel32 = syscall.NewLazyDLL("kernel32.dll")
-	modversion  = syscall.NewLazyDLL("version.dll")
-	modpsapi    = syscall.NewLazyDLL("psapi.dll")
-	modntdll    = syscall.NewLazyDLL("ntdll.dll")
+	modkernel32 = windows.NewLazySystemDLL("kernel32.dll")
+	modversion  = windows.NewLazySystemDLL("version.dll")
+	modpsapi    = windows.NewLazySystemDLL("psapi.dll")
+	modntdll    = windows.NewLazySystemDLL("ntdll.dll")
 
 	procGetNativeSystemInfo       = modkernel32.NewProc("GetNativeSystemInfo")
 	procGetTickCount64            = modkernel32.NewProc("GetTickCount64")

@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package apm
+package apm // import "go.elastic.co/apm"
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"os"
@@ -26,11 +27,14 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 
+	"go.elastic.co/apm/internal/apmcloudutil"
 	"go.elastic.co/apm/internal/apmhostutil"
+	"go.elastic.co/apm/internal/apmlog"
 	"go.elastic.co/apm/internal/apmstrings"
 	"go.elastic.co/apm/model"
 )
@@ -41,6 +45,9 @@ var (
 	goLanguage     = model.Language{Name: "go", Version: runtime.Version()}
 	goRuntime      = model.Runtime{Name: runtime.Compiler, Version: runtime.Version()}
 	localSystem    model.System
+
+	cloudMetadataOnce sync.Once
+	cloudMetadata     *model.Cloud
 
 	serviceNameInvalidRegexp = regexp.MustCompile("[^" + serviceNameValidClass + "]")
 	labelKeyReplacer         = strings.NewReplacer(`.`, `_`, `*`, `_`, `"`, `_`)
@@ -158,6 +165,30 @@ func getKubernetesMetadata() *model.Kubernetes {
 		}
 	}
 	return kubernetes
+}
+
+func getCloudMetadata() *model.Cloud {
+	// Querying cloud metadata can block, so we don't fetch it at
+	// package initialisation time. Instead, we defer until it is
+	// first requested by the tracer.
+	cloudMetadataOnce.Do(func() {
+		logger := apmlog.DefaultLogger
+		provider := apmcloudutil.Auto
+		if str := os.Getenv(envCloudProvider); str != "" {
+			var err error
+			provider, err = apmcloudutil.ParseProvider(str)
+			if err != nil && logger != nil {
+				logger.Warningf("disabling %q cloud metadata: %s", envCloudProvider, err)
+			}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		var out model.Cloud
+		if provider.GetCloudMetadata(ctx, logger, &out) {
+			cloudMetadata = &out
+		}
+	})
+	return cloudMetadata
 }
 
 func cleanLabelKey(k string) string {

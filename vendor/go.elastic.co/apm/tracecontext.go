@@ -15,16 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package apm
+package apm // import "go.elastic.co/apm"
 
 import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
 	"regexp"
+	"strconv"
+	"strings"
 	"unicode"
 
 	"github.com/pkg/errors"
+)
+
+const (
+	elasticTracestateVendorKey = "es"
 )
 
 var (
@@ -152,6 +158,13 @@ func (o TraceOptions) WithRecorded(recorded bool) TraceOptions {
 // TraceState holds vendor-specific state for a trace.
 type TraceState struct {
 	head *TraceStateEntry
+
+	// Fields related to parsing the Elastic ("es") tracestate entry.
+	//
+	// These must not be modified after NewTraceState returns.
+	parseElasticTracestateError error
+	haveSampleRate              bool
+	sampleRate                  float64
 }
 
 // NewTraceState returns a TraceState based on entries.
@@ -167,7 +180,53 @@ func NewTraceState(entries ...TraceStateEntry) TraceState {
 		}
 		last = &e
 	}
+	for _, e := range entries {
+		if e.Key != elasticTracestateVendorKey {
+			continue
+		}
+		out.parseElasticTracestateError = out.parseElasticTracestate(e)
+		break
+	}
 	return out
+}
+
+// parseElasticTracestate parses an Elastic ("es") tracestate entry.
+//
+// Per https://github.com/elastic/apm/blob/master/specs/agents/tracing-distributed-tracing.md,
+// the "es" tracestate value format is: "key:value;key:value...". Unknown keys are ignored.
+func (s *TraceState) parseElasticTracestate(e TraceStateEntry) error {
+	if err := e.Validate(); err != nil {
+		return err
+	}
+	value := e.Value
+	for value != "" {
+		kv := value
+		end := strings.IndexRune(value, ';')
+		if end >= 0 {
+			kv = value[:end]
+			value = value[end+1:]
+		} else {
+			value = ""
+		}
+		sep := strings.IndexRune(kv, ':')
+		if sep == -1 {
+			return errors.New("malformed 'es' tracestate entry")
+		}
+		k, v := kv[:sep], kv[sep+1:]
+		switch k {
+		case "s":
+			sampleRate, err := strconv.ParseFloat(v, 64)
+			if err != nil {
+				return err
+			}
+			if sampleRate < 0 || sampleRate > 1 {
+				return fmt.Errorf("sample rate %q out of range", v)
+			}
+			s.sampleRate = sampleRate
+			s.haveSampleRate = true
+		}
+	}
+	return nil
 }
 
 // String returns s as a comma-separated list of key-value pairs.
@@ -199,8 +258,16 @@ func (s TraceState) Validate() error {
 		if i == 32 {
 			return errors.New("tracestate contains more than the maximum allowed number of entries, 32")
 		}
-		if err := e.Validate(); err != nil {
-			return errors.Wrapf(err, "invalid tracestate entry at position %d", i)
+		if e.Key == elasticTracestateVendorKey {
+			// s.parseElasticTracestateError holds a general e.Validate error if any
+			// occurred, or any other error specific to the Elastic tracestate format.
+			if err := s.parseElasticTracestateError; err != nil {
+				return errors.Wrapf(err, "invalid tracestate entry at position %d", i)
+			}
+		} else {
+			if err := e.Validate(); err != nil {
+				return errors.Wrapf(err, "invalid tracestate entry at position %d", i)
+			}
 		}
 		if prev, ok := recorded[e.Key]; ok {
 			return fmt.Errorf("duplicate tracestate key %q at positions %d and %d", e.Key, prev, i)
@@ -260,4 +327,11 @@ func (e *TraceStateEntry) validateValue() error {
 		}
 	}
 	return nil
+}
+
+func formatElasticTracestateValue(sampleRate float64) string {
+	// 0       -> "s:0"
+	// 1       -> "s:1"
+	// 0.55555 -> "s:0.5555" (any rounding should be applied prior)
+	return fmt.Sprintf("s:%.4g", sampleRate)
 }

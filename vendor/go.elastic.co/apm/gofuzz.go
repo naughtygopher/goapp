@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build gofuzz
 // +build gofuzz
 
-package apm
+package apm // import "go.elastic.co/apm"
 
 import (
 	"bytes"

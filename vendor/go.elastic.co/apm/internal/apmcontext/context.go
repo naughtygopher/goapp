@@ -17,7 +17,9 @@
 
 package apmcontext
 
-import "context"
+import (
+	"context"
+)
 
 var (
 	// ContextWithSpan takes a context and span and returns a new context
@@ -37,6 +39,15 @@ var (
 	// it at package init time.
 	ContextWithTransaction = DefaultContextWithTransaction
 
+	// ContextWithBodyCapturer takes a context and body capturer and returns
+	// a new context from which the body capturer can be extracted using
+	// BodyCapturerFromContext.
+	//
+	// ContextWithBodyCapturer is used by apm.ContextWithBodyCapturer.
+	// It is a variable to allow other packages, such as apmot, to replace
+	// it at package init time.
+	ContextWithBodyCapturer = DefaultContextWithBodyCapturer
+
 	// SpanFromContext returns a span included in the context using
 	// ContextWithSpan.
 	//
@@ -52,10 +63,19 @@ var (
 	// It is a variable to allow other packages, such as apmot, to replace
 	// it at package init time.
 	TransactionFromContext = DefaultTransactionFromContext
+
+	// BodyCapturerFromContext returns a body capturer included in the context
+	// using ContextWithBodyCapturer.
+	//
+	// BodyCapturerFromContext is used by apm.BodyCapturerFromContext.
+	// It is a variable to allow other packages, such as apmot, to replace
+	// it at package init time.
+	BodyCapturerFromContext = DefaultBodyCapturerFromContext
 )
 
 type spanKey struct{}
 type transactionKey struct{}
+type bodyCapturerKey struct{}
 
 // DefaultContextWithSpan is the default value for ContextWithSpan.
 func DefaultContextWithSpan(ctx context.Context, span interface{}) context.Context {
@@ -67,6 +87,11 @@ func DefaultContextWithTransaction(ctx context.Context, tx interface{}) context.
 	return context.WithValue(ctx, transactionKey{}, tx)
 }
 
+// DefaultContextWithBodyCapturer is the default value for ContextWithBodyCapturer.
+func DefaultContextWithBodyCapturer(ctx context.Context, bc interface{}) context.Context {
+	return context.WithValue(ctx, bodyCapturerKey{}, bc)
+}
+
 // DefaultSpanFromContext is the default value for SpanFromContext.
 func DefaultSpanFromContext(ctx context.Context) interface{} {
 	return ctx.Value(spanKey{})
@@ -75,4 +100,9 @@ func DefaultSpanFromContext(ctx context.Context) interface{} {
 // DefaultTransactionFromContext is the default value for TransactionFromContext.
 func DefaultTransactionFromContext(ctx context.Context) interface{} {
 	return ctx.Value(transactionKey{})
+}
+
+// DefaultBodyCapturerFromContext is the default value for BodyCapturerFromContext.
+func DefaultBodyCapturerFromContext(ctx context.Context) interface{} {
+	return ctx.Value(bodyCapturerKey{})
 }

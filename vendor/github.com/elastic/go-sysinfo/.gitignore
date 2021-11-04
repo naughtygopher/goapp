@@ -9,3 +9,5 @@ _obj
 main.retry
 testing/ssh_config
 testing/ve
+
+build/

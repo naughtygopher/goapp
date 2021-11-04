@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package transport
+package transport // import "go.elastic.co/apm/transport"
 
 import (
 	"bytes"
@@ -59,6 +59,7 @@ const (
 	envServerTimeout    = "ELASTIC_APM_SERVER_TIMEOUT"
 	envServerCert       = "ELASTIC_APM_SERVER_CERT"
 	envVerifyServerCert = "ELASTIC_APM_VERIFY_SERVER_CERT"
+	envCACert           = "ELASTIC_APM_SERVER_CA_CERT_FILE"
 )
 
 var (
@@ -91,11 +92,9 @@ type HTTPTransport struct {
 // streaming data to the APM Server. The returned HTTPTransport will be
 // initialized using the following environment variables:
 //
-// - ELASTIC_APM_SERVER_URLS: a comma-separated list of APM Server URLs.
-//   The transport will use this list of URLs for sending requests,
-//   switching to the next URL in the list upon error. The list will be
-//   shuffled first. If no URLs are specified, then the transport will
-//   use the default URL "http://localhost:8200".
+// - ELASTIC_APM_SERVER_URL: the APM Server URL used for sending
+//   requests. If no URL is specified, then the transport will use the
+//   default URL "http://localhost:8200".
 //
 // - ELASTIC_APM_SERVER_TIMEOUT: timeout for requests to the APM Server.
 //   If not specified, defaults to 30 seconds.
@@ -144,6 +143,19 @@ func NewHTTPTransport() (*HTTPTransport, error) {
 		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 			return verifyPeerCertificate(rawCerts, serverCert)
 		}
+	}
+
+	caCertPath := os.Getenv(envCACert)
+	if caCertPath != "" {
+		rootCAs := x509.NewCertPool()
+		additionalCerts, err := ioutil.ReadFile(caCertPath)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to load root CA file from %s", caCertPath)
+		}
+		if !rootCAs.AppendCertsFromPEM(additionalCerts) {
+			return nil, fmt.Errorf("failed to load CA certs from %s", caCertPath)
+		}
+		tlsConfig.RootCAs = rootCAs
 	}
 
 	client := &http.Client{

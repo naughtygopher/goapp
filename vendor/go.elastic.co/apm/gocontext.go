@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package apm
+package apm // import "go.elastic.co/apm"
 
 import (
 	"context"
@@ -35,6 +35,12 @@ func ContextWithTransaction(parent context.Context, t *Transaction) context.Cont
 	return apmcontext.ContextWithTransaction(parent, t)
 }
 
+// ContextWithBodyCapturer returns a copy of parent in which the given
+// body capturer is stored, associated with the key bodyCapturerKey.
+func ContextWithBodyCapturer(parent context.Context, bc *BodyCapturer) context.Context {
+	return apmcontext.ContextWithBodyCapturer(parent, bc)
+}
+
 // SpanFromContext returns the current Span in context, if any. The span must
 // have been added to the context previously using ContextWithSpan, or the
 // top-level StartSpan function.
@@ -48,6 +54,14 @@ func SpanFromContext(ctx context.Context) *Span {
 // ContextWithTransaction.
 func TransactionFromContext(ctx context.Context) *Transaction {
 	value, _ := apmcontext.TransactionFromContext(ctx).(*Transaction)
+	return value
+}
+
+// BodyCapturerFromContext returns the BodyCapturer in context, if any.
+// The body capturer must have been added to the context previously using
+// ContextWithBodyCapturer.
+func BodyCapturerFromContext(ctx context.Context) *BodyCapturer {
+	value, _ := apmcontext.BodyCapturerFromContext(ctx).(*BodyCapturer)
 	return value
 }
 
@@ -130,6 +144,11 @@ func CaptureError(ctx context.Context, err error) *Error {
 		}
 		e := tx.tracer.NewError(err)
 		e.Handled = true
+		bc := BodyCapturerFromContext(ctx)
+		if bc != nil {
+			e.Context.SetHTTPRequest(bc.request)
+			e.Context.SetHTTPRequestBody(bc)
+		}
 		e.SetTransaction(tx)
 		return e
 	} else {

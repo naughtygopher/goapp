@@ -3,11 +3,11 @@ package pgx
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
 	"github.com/jackc/pgconn"
-	errors "golang.org/x/xerrors"
 )
 
 type TxIsoLevel string
@@ -42,7 +42,12 @@ type TxOptions struct {
 	DeferrableMode TxDeferrableMode
 }
 
+var emptyTxOptions TxOptions
+
 func (txOptions TxOptions) beginSQL() string {
+	if txOptions == emptyTxOptions {
+		return "begin"
+	}
 	buf := &bytes.Buffer{}
 	buf.WriteString("begin")
 	if txOptions.IsoLevel != "" {
@@ -85,6 +90,39 @@ func (c *Conn) BeginTx(ctx context.Context, txOptions TxOptions) (Tx, error) {
 	return &dbTx{conn: c}, nil
 }
 
+// BeginFunc starts a transaction and calls f. If f does not return an error the transaction is committed. If f returns
+// an error the transaction is rolled back. The context will be used when executing the transaction control statements
+// (BEGIN, ROLLBACK, and COMMIT) but does not otherwise affect the execution of f.
+func (c *Conn) BeginFunc(ctx context.Context, f func(Tx) error) (err error) {
+	return c.BeginTxFunc(ctx, TxOptions{}, f)
+}
+
+// BeginTxFunc starts a transaction with txOptions determining the transaction mode and calls f. If f does not return
+// an error the transaction is committed. If f returns an error the transaction is rolled back. The context will be
+// used when executing the transaction control statements (BEGIN, ROLLBACK, and COMMIT) but does not otherwise affect
+// the execution of f.
+func (c *Conn) BeginTxFunc(ctx context.Context, txOptions TxOptions, f func(Tx) error) (err error) {
+	var tx Tx
+	tx, err = c.BeginTx(ctx, txOptions)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		rollbackErr := tx.Rollback(ctx)
+		if !(rollbackErr == nil || errors.Is(rollbackErr, ErrTxClosed)) {
+			err = rollbackErr
+		}
+	}()
+
+	fErr := f(tx)
+	if fErr != nil {
+		_ = tx.Rollback(ctx) // ignore rollback error as there is already an error to return
+		return fErr
+	}
+
+	return tx.Commit(ctx)
+}
+
 // Tx represents a database transaction.
 //
 // Tx is an interface instead of a struct to enable connection pools to be implemented without relying on internal pgx
@@ -95,6 +133,10 @@ func (c *Conn) BeginTx(ctx context.Context, txOptions TxOptions) (Tx, error) {
 type Tx interface {
 	// Begin starts a pseudo nested transaction.
 	Begin(ctx context.Context) (Tx, error)
+
+	// BeginFunc starts a pseudo nested transaction and executes f. If f does not return an err the pseudo nested
+	// transaction will be committed. If it does then it will be rolled back.
+	BeginFunc(ctx context.Context, f func(Tx) error) (err error)
 
 	// Commit commits the transaction if this is a real transaction or releases the savepoint if this is a pseudo nested
 	// transaction. Commit will return ErrTxClosed if the Tx is already closed, but is otherwise safe to call multiple
@@ -117,6 +159,7 @@ type Tx interface {
 	Exec(ctx context.Context, sql string, arguments ...interface{}) (commandTag pgconn.CommandTag, err error)
 	Query(ctx context.Context, sql string, args ...interface{}) (Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...interface{}) Row
+	QueryFunc(ctx context.Context, sql string, args []interface{}, scans []interface{}, f func(QueryFuncRow) error) (pgconn.CommandTag, error)
 
 	// Conn returns the underlying *Conn that on which this transaction is executing.
 	Conn() *Conn
@@ -148,6 +191,32 @@ func (tx *dbTx) Begin(ctx context.Context) (Tx, error) {
 	return &dbSavepoint{tx: tx, savepointNum: tx.savepointNum}, nil
 }
 
+func (tx *dbTx) BeginFunc(ctx context.Context, f func(Tx) error) (err error) {
+	if tx.closed {
+		return ErrTxClosed
+	}
+
+	var savepoint Tx
+	savepoint, err = tx.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		rollbackErr := savepoint.Rollback(ctx)
+		if !(rollbackErr == nil || errors.Is(rollbackErr, ErrTxClosed)) {
+			err = rollbackErr
+		}
+	}()
+
+	fErr := f(savepoint)
+	if fErr != nil {
+		_ = savepoint.Rollback(ctx) // ignore rollback error as there is already an error to return
+		return fErr
+	}
+
+	return savepoint.Commit(ctx)
+}
+
 // Commit commits the transaction.
 func (tx *dbTx) Commit(ctx context.Context) error {
 	if tx.closed {
@@ -157,6 +226,9 @@ func (tx *dbTx) Commit(ctx context.Context) error {
 	commandTag, err := tx.conn.Exec(ctx, "commit")
 	tx.closed = true
 	if err != nil {
+		if tx.conn.PgConn().TxStatus() != 'I' {
+			_ = tx.conn.Close(ctx) // already have error to return
+		}
 		return err
 	}
 	if string(commandTag) == "ROLLBACK" {
@@ -179,7 +251,7 @@ func (tx *dbTx) Rollback(ctx context.Context) error {
 	tx.closed = true
 	if err != nil {
 		// A rollback failure leaves the connection in an undefined state
-		tx.conn.die(errors.Errorf("rollback failed: %w", err))
+		tx.conn.die(fmt.Errorf("rollback failed: %w", err))
 		return err
 	}
 
@@ -215,6 +287,15 @@ func (tx *dbTx) Query(ctx context.Context, sql string, args ...interface{}) (Row
 func (tx *dbTx) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
 	rows, _ := tx.Query(ctx, sql, args...)
 	return (*connRow)(rows.(*connRows))
+}
+
+// QueryFunc delegates to the underlying *Conn.
+func (tx *dbTx) QueryFunc(ctx context.Context, sql string, args []interface{}, scans []interface{}, f func(QueryFuncRow) error) (pgconn.CommandTag, error) {
+	if tx.closed {
+		return nil, ErrTxClosed
+	}
+
+	return tx.conn.QueryFunc(ctx, sql, args, scans, f)
 }
 
 // CopyFrom delegates to the underlying *Conn
@@ -258,6 +339,14 @@ func (sp *dbSavepoint) Begin(ctx context.Context) (Tx, error) {
 	}
 
 	return sp.tx.Begin(ctx)
+}
+
+func (sp *dbSavepoint) BeginFunc(ctx context.Context, f func(Tx) error) (err error) {
+	if sp.closed {
+		return ErrTxClosed
+	}
+
+	return sp.tx.BeginFunc(ctx, f)
 }
 
 // Commit releases the savepoint essentially committing the pseudo nested transaction.
@@ -317,6 +406,15 @@ func (sp *dbSavepoint) Query(ctx context.Context, sql string, args ...interface{
 func (sp *dbSavepoint) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
 	rows, _ := sp.Query(ctx, sql, args...)
 	return (*connRow)(rows.(*connRows))
+}
+
+// QueryFunc delegates to the underlying Tx.
+func (sp *dbSavepoint) QueryFunc(ctx context.Context, sql string, args []interface{}, scans []interface{}, f func(QueryFuncRow) error) (pgconn.CommandTag, error) {
+	if sp.closed {
+		return nil, ErrTxClosed
+	}
+
+	return sp.tx.QueryFunc(ctx, sql, args, scans, f)
 }
 
 // CopyFrom delegates to the underlying *Conn

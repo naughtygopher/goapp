@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package model
+package model // import "go.elastic.co/apm/model"
 
 import (
 	"encoding/hex"
@@ -71,15 +71,22 @@ func (v *HTTPSpanContext) UnmarshalJSON(data []byte) error {
 // MarshalFastJSON writes the JSON representation of v to w.
 func (v *HTTPSpanContext) MarshalFastJSON(w *fastjson.Writer) error {
 	w.RawByte('{')
-	beforeURL := w.Size()
-	w.RawString(`"url":"`)
-	if v.marshalURL(w) {
-		w.RawByte('"')
-	} else {
-		w.Rewind(beforeURL)
+	first := true
+	if v.URL != nil {
+		beforeURL := w.Size()
+		w.RawString(`"url":"`)
+		if v.marshalURL(w) {
+			w.RawByte('"')
+			first = false
+		} else {
+			w.Rewind(beforeURL)
+		}
 	}
 	if v.StatusCode > 0 {
-		w.RawString(`,"status_code":`)
+		if !first {
+			w.RawByte(',')
+		}
+		w.RawString(`"status_code":`)
 		w.Int64(int64(v.StatusCode))
 	}
 	w.RawByte('}')

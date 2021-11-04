@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package apmhttp
+package apmhttp // import "go.elastic.co/apm/module/apmhttp"
 
 import (
 	"context"
+	"io"
 	"net/http"
 
 	"go.elastic.co/apm"
@@ -38,13 +39,15 @@ func Wrap(h http.Handler, o ...ServerOption) http.Handler {
 		panic("h == nil")
 	}
 	handler := &handler{
-		handler:        h,
-		tracer:         apm.DefaultTracer,
-		requestName:    ServerRequestName,
-		requestIgnorer: DefaultServerRequestIgnorer(),
+		handler:     h,
+		tracer:      apm.DefaultTracer,
+		requestName: ServerRequestName,
 	}
 	for _, o := range o {
 		o(handler)
+	}
+	if handler.requestIgnorer == nil {
+		handler.requestIgnorer = NewDynamicServerRequestIgnorer(handler.tracer)
 	}
 	if handler.recovery == nil {
 		handler.recovery = NewTraceRecovery(handler.tracer)
@@ -71,11 +74,11 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		h.handler.ServeHTTP(w, req)
 		return
 	}
-	tx, req := StartTransaction(h.tracer, h.requestName(req), req)
+	tx, body, req := StartTransactionWithBody(h.tracer, h.requestName(req), req)
 	defer tx.End()
 
-	body := h.tracer.CaptureHTTPRequestBody(req)
 	w, resp := WrapResponseWriter(w)
+
 	defer func() {
 		if v := recover(); v != nil {
 			if h.panicPropagation {
@@ -104,10 +107,12 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 //
 // If the transaction is not ignored, the request will be
 // returned with the transaction added to its context.
+//
+// DEPRECATED. Use StartTransactionWithBody instead.
 func StartTransaction(tracer *apm.Tracer, name string, req *http.Request) (*apm.Transaction, *http.Request) {
-	traceContext, ok := getRequestTraceparent(req, ElasticTraceparentHeader)
+	traceContext, ok := getRequestTraceparent(req, W3CTraceparentHeader)
 	if !ok {
-		traceContext, ok = getRequestTraceparent(req, W3CTraceparentHeader)
+		traceContext, ok = getRequestTraceparent(req, ElasticTraceparentHeader)
 	}
 	if ok {
 		traceContext.State, _ = ParseTracestateHeader(req.Header[TracestateHeader]...)
@@ -116,6 +121,20 @@ func StartTransaction(tracer *apm.Tracer, name string, req *http.Request) (*apm.
 	ctx := apm.ContextWithTransaction(req.Context(), tx)
 	req = RequestWithContext(ctx, req)
 	return tx, req
+}
+
+// StartTransactionWithBody returns a new Transaction with name,
+// created with tracer, and taking trace context from req.
+//
+// If the transaction is not ignored, the request and the request body
+// capturer will be returned with the transaction added to its context.
+func StartTransactionWithBody(tracer *apm.Tracer, name string, req *http.Request) (*apm.Transaction, *apm.BodyCapturer, *http.Request) {
+	tx, req := StartTransaction(tracer, name, req)
+	bc := tracer.CaptureHTTPRequestBody(req)
+	if bc != nil {
+		req = RequestWithContext(apm.ContextWithBodyCapturer(req.Context(), bc), req)
+	}
+	return tx, bc, req
 }
 
 func getRequestTraceparent(req *http.Request, header string) (apm.TraceContext, bool) {
@@ -153,8 +172,8 @@ func SetContext(ctx *apm.Context, req *http.Request, resp *Response, body *apm.B
 // ResponseWriter's Write or WriteHeader methods are called, then the
 // response's StatusCode field will be zero.
 //
-// The returned http.ResponseWriter implements http.Pusher and http.Hijacker
-// if and only if the provided http.ResponseWriter does.
+// The returned http.ResponseWriter implements http.Pusher, http.Hijacker,
+// and io.ReaderFrom if and only if the provided http.ResponseWriter does.
 func WrapResponseWriter(w http.ResponseWriter) (http.ResponseWriter, *Response) {
 	rw := responseWriter{
 		ResponseWriter: w,
@@ -162,30 +181,50 @@ func WrapResponseWriter(w http.ResponseWriter) (http.ResponseWriter, *Response) 
 			Headers: w.Header(),
 		},
 	}
+
 	h, _ := w.(http.Hijacker)
 	p, _ := w.(http.Pusher)
+	rf, _ := w.(io.ReaderFrom)
+
 	switch {
 	case h != nil && p != nil:
-		rwhp := &responseWriterHijackerPusher{
+		rwhp := responseWriterHijackerPusher{
 			responseWriter: rw,
 			Hijacker:       h,
 			Pusher:         p,
 		}
-		return rwhp, &rwhp.resp
+		if rf != nil {
+			rwhprf := responseWriterHijackerPusherReaderFrom{rwhp, rf}
+			return &rwhprf, &rwhprf.resp
+		}
+		return &rwhp, &rwhp.resp
 	case h != nil:
-		rwh := &responseWriterHijacker{
+		rwh := responseWriterHijacker{
 			responseWriter: rw,
 			Hijacker:       h,
 		}
-		return rwh, &rwh.resp
+		if rf != nil {
+			rwhrf := responseWriterHijackerReaderFrom{rwh, rf}
+			return &rwhrf, &rwhrf.resp
+		}
+		return &rwh, &rwh.resp
 	case p != nil:
-		rwp := &responseWriterPusher{
+		rwp := responseWriterPusher{
 			responseWriter: rw,
 			Pusher:         p,
 		}
-		return rwp, &rwp.resp
+		if rf != nil {
+			rwprf := responseWriterPusherReaderFrom{rwp, rf}
+			return &rwprf, &rwprf.resp
+		}
+		return &rwp, &rwp.resp
+	default:
+		if rf != nil {
+			rwrf := responseWriterReaderFrom{rw, rf}
+			return &rwrf, &rwrf.resp
+		}
+		return &rw, &rw.resp
 	}
-	return &rw, &rw.resp
 }
 
 // Response records details of the HTTP response.
@@ -229,7 +268,7 @@ func (w *responseWriter) CloseNotify() <-chan bool {
 	return nil
 }
 
-// Flush calls w.flush() if w.flush is non-nil, otherwise
+// Flush calls w.ResponseWriter's Flush method if implemented, otherwise
 // it does nothing.
 func (w *responseWriter) Flush() {
 	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
@@ -237,9 +276,19 @@ func (w *responseWriter) Flush() {
 	}
 }
 
+type responseWriterReaderFrom struct {
+	responseWriter
+	io.ReaderFrom
+}
+
 type responseWriterHijacker struct {
 	responseWriter
 	http.Hijacker
+}
+
+type responseWriterHijackerReaderFrom struct {
+	responseWriterHijacker
+	io.ReaderFrom
 }
 
 type responseWriterPusher struct {
@@ -247,10 +296,20 @@ type responseWriterPusher struct {
 	http.Pusher
 }
 
+type responseWriterPusherReaderFrom struct {
+	responseWriterPusher
+	io.ReaderFrom
+}
+
 type responseWriterHijackerPusher struct {
 	responseWriter
 	http.Hijacker
 	http.Pusher
+}
+
+type responseWriterHijackerPusherReaderFrom struct {
+	responseWriterHijackerPusher
+	io.ReaderFrom
 }
 
 // ServerOption sets options for tracing server requests.

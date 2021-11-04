@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package apm
+package apm // import "go.elastic.co/apm"
 
 import (
 	cryptorand "crypto/rand"
@@ -64,7 +64,7 @@ func (tx *Transaction) StartSpan(name, spanType string, parent *Span) *Span {
 // span type, subtype, and action; a single dot separates span type and
 // subtype, and the action will not be set.
 func (tx *Transaction) StartSpanOptions(name, spanType string, opts SpanOptions) *Span {
-	if tx == nil {
+	if tx == nil || opts.parent.IsExitSpan() {
 		return newDroppedSpan()
 	}
 
@@ -76,6 +76,12 @@ func (tx *Transaction) StartSpanOptions(name, spanType string, opts SpanOptions)
 		}
 	}
 	transactionID := tx.traceContext.Span
+
+	// Lock the parent first to avoid deadlocks in breakdown metrics calculation.
+	if opts.parent != nil {
+		opts.parent.mu.Lock()
+		defer opts.parent.mu.Unlock()
+	}
 
 	// Prevent tx from being ended while we're starting a span.
 	tx.mu.RLock()
@@ -95,6 +101,9 @@ func (tx *Transaction) StartSpanOptions(name, spanType string, opts SpanOptions)
 	span := tx.tracer.startSpan(name, spanType, transactionID, opts)
 	span.tx = tx
 	span.parent = opts.parent
+	if opts.ExitSpan {
+		span.exit = true
+	}
 
 	// Guard access to spansCreated, spansDropped, rand, and childrenTimer.
 	tx.TransactionData.mu.Lock()
@@ -117,8 +126,6 @@ func (tx *Transaction) StartSpanOptions(name, spanType string, opts SpanOptions)
 
 	if tx.breakdownMetricsEnabled {
 		if span.parent != nil {
-			span.parent.mu.Lock()
-			defer span.parent.mu.Unlock()
 			if !span.parent.ended() {
 				span.parent.childrenTimer.childStarted(span.timestamp)
 			}
@@ -139,7 +146,10 @@ func (tx *Transaction) StartSpanOptions(name, spanType string, opts SpanOptions)
 // way will not have the "max spans" configuration applied, nor will they be
 // considered in any transaction's span count.
 func (t *Tracer) StartSpan(name, spanType string, transactionID SpanID, opts SpanOptions) *Span {
-	if opts.Parent.Trace.Validate() != nil || opts.Parent.Span.Validate() != nil || transactionID.Validate() != nil {
+	if opts.Parent.Trace.Validate() != nil ||
+		opts.Parent.Span.Validate() != nil ||
+		transactionID.Validate() != nil ||
+		opts.parent.IsExitSpan() {
 		return newDroppedSpan()
 	}
 	if !opts.Parent.Options.Recorded() {
@@ -162,6 +172,9 @@ func (t *Tracer) StartSpan(name, spanType string, transactionID SpanID, opts Spa
 	instrumentationConfig := t.instrumentationConfig()
 	span.stackFramesMinDuration = instrumentationConfig.spanFramesMinDuration
 	span.stackTraceLimit = instrumentationConfig.stackTraceLimit
+	if opts.ExitSpan {
+		span.exit = true
+	}
 
 	return span
 }
@@ -174,6 +187,10 @@ type SpanOptions struct {
 	// SpanID holds the ID to assign to the span. If this is zero, a new ID
 	// will be generated and used instead.
 	SpanID SpanID
+
+	// Indicates whether a span is an exit span or not. All child spans
+	// will be noop spans.
+	ExitSpan bool
 
 	// parent, if non-nil, holds the parent span.
 	//
@@ -234,6 +251,8 @@ type Span struct {
 	parent        *Span
 	traceContext  TraceContext
 	transactionID SpanID
+	parentID      SpanID
+	exit          bool
 
 	mu sync.RWMutex
 
@@ -290,8 +309,16 @@ func (s *Span) End() {
 	if s.ended() {
 		return
 	}
+	if s.exit && !s.Context.setDestinationServiceCalled {
+		// The span was created as an exit span, but the user did not
+		// manually set the destination.service.resource
+		s.setExitSpanDestinationService()
+	}
 	if s.Duration < 0 {
 		s.Duration = time.Since(s.timestamp)
+	}
+	if s.Outcome == "" {
+		s.Outcome = s.Context.outcome()
 	}
 	if s.dropped() {
 		if s.tx == nil {
@@ -313,6 +340,14 @@ func (s *Span) End() {
 	s.SpanData = nil
 }
 
+// ParentID returns the ID of the span's parent span or transaction.
+func (s *Span) ParentID() SpanID {
+	if s == nil {
+		return SpanID{}
+	}
+	return s.parentID
+}
+
 // reportSelfTime reports the span's self-time to its transaction, and informs
 // the parent that it has ended in order for the parent to later calculate its
 // own self-time.
@@ -321,6 +356,13 @@ func (s *Span) End() {
 // s.Duration set.
 func (s *Span) reportSelfTime() {
 	endTime := s.timestamp.Add(s.Duration)
+
+	// If this span has a parent span, lock it before proceeding to
+	// prevent deadlocking when concurrently ending parent and child.
+	if s.parent != nil {
+		s.parent.mu.Lock()
+		defer s.parent.mu.Unlock()
+	}
 
 	// TODO(axw) try to find a way to not lock the transaction when
 	// ending every span. We already lock them when starting spans.
@@ -333,11 +375,9 @@ func (s *Span) reportSelfTime() {
 	s.tx.TransactionData.mu.Lock()
 	defer s.tx.TransactionData.mu.Unlock()
 	if s.parent != nil {
-		s.parent.mu.Lock()
 		if !s.parent.ended() {
 			s.parent.childrenTimer.childEnded(endTime)
 		}
-		s.parent.mu.Unlock()
 	} else {
 		s.tx.childrenTimer.childEnded(endTime)
 	}
@@ -363,11 +403,28 @@ func (s *Span) ended() bool {
 	return s.SpanData == nil
 }
 
+func (s *Span) setExitSpanDestinationService() {
+	resource := s.Subtype
+	if resource == "" {
+		resource = s.Type
+	}
+	s.Context.SetDestinationService(DestinationServiceSpanContext{
+		Resource: resource,
+	})
+}
+
+// IsExitSpan returns true if the span is an exit span.
+func (s *Span) IsExitSpan() bool {
+	if s == nil {
+		return false
+	}
+	return s.exit
+}
+
 // SpanData holds the details for a span, and is embedded inside Span.
 // When a span is ended or discarded, its SpanData field will be set
 // to nil.
 type SpanData struct {
-	parentID               SpanID
 	stackFramesMinDuration time.Duration
 	stackTraceLimit        int
 	timestamp              time.Time
@@ -393,6 +450,15 @@ type SpanData struct {
 	// If you do not update Duration, calling Span.End will calculate the
 	// duration based on the elapsed time since the span's start time.
 	Duration time.Duration
+
+	// Outcome holds the span outcome: success, failure, or unknown (the default).
+	// If Outcome is set to something else, it will be replaced with "unknown".
+	//
+	// Outcome is used for error rate calculations. A value of "success" indicates
+	// that a operation succeeded, while "failure" indicates that the operation
+	// failed. If Outcome is set to "unknown" (or some other value), then the
+	// span will not be included in error rate calculations.
+	Outcome string
 
 	// Context describes the context in which span occurs.
 	Context SpanContext

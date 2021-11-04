@@ -5,6 +5,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/bnkamalesh/errors)](https://goreportcard.com/report/github.com/bnkamalesh/errors)
 [![Maintainability](https://api.codeclimate.com/v1/badges/a86629ab167695d4db7f/maintainability)](https://codeclimate.com/github/bnkamalesh/errors)
 [![](https://godoc.org/github.com/nathany/looper?status.svg)](https://pkg.go.dev/github.com/bnkamalesh/errors?tab=doc)
+[![](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#error-handling)
 
 # Errors
 
@@ -14,8 +15,10 @@ Errors package is a drop-in replacement of the built-in Go errors package with n
 2. User friendly message
 3. File & line number prefixed to errors
 4. HTTP status code and user friendly message (wrapped messages are concatenated) for all error types
+5. Helper functions to generate each error type
+6. Helper function to get error Type, error type as int, check if error type is wrapped anywhere in chain
 
-In case of nested errors, the messages (in case of nesting with this package's error) & errors are also looped through.
+In case of nested errors, the messages & errors are also looped through the full chain of errors.
 
 ### Prerequisites
 
@@ -78,14 +81,14 @@ A common annoyance with Go errors which most people are aware of is, figuring ou
 
 ### HTTP status code & message
 
-The function `errors.HTTPStatusCodeMessage(error) (int, string, bool)` returns the HTTP status code, message, and a boolean value. The boolean if true, means the error is of type *Error from this package. 
+The function `errors.HTTPStatusCodeMessage(error) (int, string, bool)` returns the HTTP status code, message, and a boolean value. The boolean is true, if the error is of type *Error from this package. 
 If error is nested with multiple errors, it loops through all the levels and returns a single concatenated message. This is illustrated in the 'How to use?' section
 
 ## How to use?
 
 Before that, over the years I have tried error with stack trace, annotation, custom error package with error codes etc. Finally, I think this package gives the best of all worlds, for most generic usecases.
 
-A sample was already shown in the user friendly message section, following one would show 1-2 scenarios.
+A sample was already shown in the user friendly message section, following one would show a few more scenarios.
 
 ```golang
 package main
@@ -162,19 +165,20 @@ func main() {
 
 ```
 
-[webgo](https://github.com/bnkamalesh/webgo) was used to illustrate the usage of the function, `errors.HTTPStatusCodeMessage`. It returns the appropriate http status code, user friendly message stored within, and a boolean value. Boolean value is `true` if the returned error is of this package's error type.
+[webgo](https://github.com/bnkamalesh/webgo) was used to illustrate the usage of the function, `errors.HTTPStatusCodeMessage`. It returns the appropriate http status code, user friendly message stored within, and a boolean value. Boolean value is `true` if the returned error of type *Error.
 Since we get the status code and message separately, when using any web framework, you can set values according to the respective framework's native functions. In case of Webgo, it wraps errors in a struct of its own. Otherwise, you could directly respond to the HTTP request by calling `errors.WriteHTTP(error,http.ResponseWriter)`. 
 
 Once the app is running, you can check the response by opening `http://localhost:8080` on your browser. Or on terminal
 ```bash
 $ curl http://localhost:8080
-{"errors":"we lost bar2!. bar2 was deceived by bar1 :(","status":500} // HTTP response
+{"errors":"we lost bar2!. bar2 was deceived by bar1 :(","status":500} // output
 ```
 
-And output of the `fmt.Println(err.Error())`
+And the `fmt.Println(err.Error())` generated output on stdout would be:
 ```bash
 /Users/username/go/src/errorscheck/main.go:28 /Users/username/go/src/errorscheck/main.go:20 sinking bar
 ```
+
 ## Benchmark
 
 Benchmark run on:
@@ -188,13 +192,16 @@ $ go test -bench=.
 goos: darwin
 goarch: amd64
 pkg: github.com/bnkamalesh/errors
-Benchmark_Internal-8                                     1880440               635 ns/op
-Benchmark_InternalErr-8                                  1607589               746 ns/op
-Benchmark_InternalGetError-8                             1680831               711 ns/op
-Benchmark_InternalGetErrorWithNestedError-8              1462900               823 ns/op
-Benchmark_InternalGetMessage-8                           1859172               646 ns/op
-Benchmark_InternalGetMessageWithNestedError-8            1649259               726 ns/op
-Benchmark_HTTPStatusCodeMessage-8                       23497728                50.3 ns/op
+Benchmark_Internal-8                            	 1874256	       639 ns/op	     368 B/op	       5 allocs/op
+Benchmark_InternalErr-8                         	 1612707	       755 ns/op	     368 B/op	       5 allocs/op
+Benchmark_InternalGetError-8                    	 1700966	       706 ns/op	     464 B/op	       6 allocs/op
+Benchmark_InternalGetErrorWithNestedError-8     	 1458368	       823 ns/op	     464 B/op	       6 allocs/op
+Benchmark_InternalGetMessage-8                  	 1866562	       643 ns/op	     368 B/op	       5 allocs/op
+Benchmark_InternalGetMessageWithNestedError-8   	 1656597	       770 ns/op	     400 B/op	       6 allocs/op
+Benchmark_HTTPStatusCodeMessage-8               	26003678	        46.1 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHasType-8                              	84689433	        14.2 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/bnkamalesh/errors	14.478s
 ```
 
 ## Contributing

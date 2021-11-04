@@ -1,3 +1,59 @@
+# 1.8.1 (July 24, 2021)
+
+* Cleaned up Go module dependency chain
+
+# 1.8.0 (July 10, 2021)
+
+* Maintain host bits for inet types (Cameron Daniel)
+* Support pointers of wrapping structs (Ivan Daunis)
+* Register JSONBArray at NewConnInfo() (Rueian)
+* CompositeTextScanner handles backslash escapes
+
+# 1.7.0 (March 25, 2021)
+
+* Fix scanning int into **sql.Scanner implementor
+* Add tsrange array type (Vasilii Novikov)
+* Fix: escaped strings when they start or end with a newline char (Stephane Martin)
+* Accept nil *time.Time in Time.Set
+* Fix numeric NaN support
+* Use Go 1.13 errors instead of xerrors
+
+# 1.6.2 (December 3, 2020)
+
+* Fix panic on assigning empty array to non-slice or array
+* Fix text array parsing disambiguates NULL and "NULL"
+* Fix Timestamptz.DecodeText with too short text
+
+# 1.6.1 (October 31, 2020)
+
+* Fix simple protocol empty array support
+
+# 1.6.0 (October 24, 2020)
+
+* Fix AssignTo pointer to pointer to slice and named types.
+* Fix zero length array assignment (Simo Haasanen)
+* Add float64, float32 convert to int2, int4, int8 (lqu3j)
+* Support setting infinite timestamps (Erik Agsjö)
+* Polygon improvements (duohedron)
+* Fix Inet.Set with nil (Tomas Volf)
+
+# 1.5.0 (September 26, 2020)
+
+* Add slice of slice mapping to multi-dimensional arrays (Simo Haasanen)
+* Fix JSONBArray
+* Fix selecting empty array
+* Text formatted values except bytea can be directly scanned to []byte
+* Add JSON marshalling for UUID (bakmataliev)
+* Improve point type conversions (bakmataliev)
+
+# 1.4.2 (July 22, 2020)
+
+* Fix encoding of a large composite data type (Yaz Saito)
+
+# 1.4.1 (July 14, 2020)
+
+* Fix ArrayType DecodeBinary empty array breaks future reads
+
 # 1.4.0 (June 27, 2020)
 
 * Add JSON support to ext/gofrs-uuid

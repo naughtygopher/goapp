@@ -2,10 +2,9 @@ package pgx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
-
-	errors "golang.org/x/xerrors"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgproto3/v2"
@@ -15,6 +14,8 @@ import (
 // Rows is the result set returned from *Conn.Query. Rows must be closed before
 // the *Conn can be used again. Rows are closed by explicitly calling Close(),
 // calling Next() until it returns false, or when a fatal error occurs.
+//
+// Once a Rows is closed the only methods that may be called are Close(), Err(), and CommandTag().
 //
 // Rows is an interface instead of a struct to allow tests to mock Query. However,
 // adding a method to an interface is technically a breaking change. Because of this
@@ -40,8 +41,7 @@ type Rows interface {
 
 	// Scan reads the values from the current row into dest values positionally.
 	// dest can include pointers to core types, values implementing the Scanner
-	// interface, []byte, and nil. []byte will skip the decoding process and directly
-	// copy the raw bytes received from PostgreSQL. nil will skip the value entirely.
+	// interface, and nil. nil will skip the value entirely.
 	Scan(dest ...interface{}) error
 
 	// Values returns the decoded row values.
@@ -105,6 +105,7 @@ type connRows struct {
 	sql        string
 	args       []interface{}
 	closed     bool
+	conn       *Conn
 
 	resultReader      *pgconn.ResultReader
 	multiResultReader *pgconn.MultiResultReader
@@ -144,8 +145,13 @@ func (rows *connRows) Close() {
 				endTime := time.Now()
 				rows.logger.log(rows.ctx, LogLevelInfo, "Query", map[string]interface{}{"sql": rows.sql, "args": logQueryArgs(rows.args), "time": endTime.Sub(rows.startTime), "rowCount": rows.rowCount})
 			}
-		} else if rows.logger.shouldLog(LogLevelError) {
-			rows.logger.log(rows.ctx, LogLevelError, "Query", map[string]interface{}{"err": rows.err, "sql": rows.sql, "args": logQueryArgs(rows.args)})
+		} else {
+			if rows.logger.shouldLog(LogLevelError) {
+				rows.logger.log(rows.ctx, LogLevelError, "Query", map[string]interface{}{"err": rows.err, "sql": rows.sql, "args": logQueryArgs(rows.args)})
+			}
+			if rows.err != nil && rows.conn.stmtcache != nil {
+				rows.conn.stmtcache.StatementErrored(rows.sql, rows.err)
+			}
 		}
 	}
 }
@@ -190,22 +196,19 @@ func (rows *connRows) Scan(dest ...interface{}) error {
 	values := rows.values
 
 	if len(fieldDescriptions) != len(values) {
-		err := errors.Errorf("number of field descriptions must equal number of values, got %d and %d", len(fieldDescriptions), len(values))
+		err := fmt.Errorf("number of field descriptions must equal number of values, got %d and %d", len(fieldDescriptions), len(values))
 		rows.fatal(err)
 		return err
 	}
 	if len(fieldDescriptions) != len(dest) {
-		err := errors.Errorf("number of field descriptions must equal number of destinations, got %d and %d", len(fieldDescriptions), len(dest))
+		err := fmt.Errorf("number of field descriptions must equal number of destinations, got %d and %d", len(fieldDescriptions), len(dest))
 		rows.fatal(err)
 		return err
 	}
 
 	if rows.scanPlans == nil {
 		rows.scanPlans = make([]pgtype.ScanPlan, len(values))
-		for i, dst := range dest {
-			if dst == nil {
-				continue
-			}
+		for i := range dest {
 			rows.scanPlans[i] = ci.PlanScan(fieldDescriptions[i].DataTypeOID, fieldDescriptions[i].Format, dest[i])
 		}
 	}
@@ -217,7 +220,7 @@ func (rows *connRows) Scan(dest ...interface{}) error {
 
 		err := rows.scanPlans[i].Scan(ci, fieldDescriptions[i].DataTypeOID, fieldDescriptions[i].Format, values[i], dst)
 		if err != nil {
-			err = scanArgError{col: i, err: err}
+			err = ScanArgError{ColumnIndex: i, Err: err}
 			rows.fatal(err)
 			return err
 		}
@@ -302,13 +305,17 @@ func (rows *connRows) RawValues() [][]byte {
 	return rows.values
 }
 
-type scanArgError struct {
-	col int
-	err error
+type ScanArgError struct {
+	ColumnIndex int
+	Err         error
 }
 
-func (e scanArgError) Error() string {
-	return fmt.Sprintf("can't scan into dest[%d]: %v", e.col, e.err)
+func (e ScanArgError) Error() string {
+	return fmt.Sprintf("can't scan into dest[%d]: %v", e.ColumnIndex, e.Err)
+}
+
+func (e ScanArgError) Unwrap() error {
+	return e.Err
 }
 
 // ScanRow decodes raw row data into dest. It can be used to scan rows read from the lower level pgconn interface.
@@ -319,10 +326,10 @@ func (e scanArgError) Error() string {
 // dest - the destination that values will be decoded into
 func ScanRow(connInfo *pgtype.ConnInfo, fieldDescriptions []pgproto3.FieldDescription, values [][]byte, dest ...interface{}) error {
 	if len(fieldDescriptions) != len(values) {
-		return errors.Errorf("number of field descriptions must equal number of values, got %d and %d", len(fieldDescriptions), len(values))
+		return fmt.Errorf("number of field descriptions must equal number of values, got %d and %d", len(fieldDescriptions), len(values))
 	}
 	if len(fieldDescriptions) != len(dest) {
-		return errors.Errorf("number of field descriptions must equal number of destinations, got %d and %d", len(fieldDescriptions), len(dest))
+		return fmt.Errorf("number of field descriptions must equal number of destinations, got %d and %d", len(fieldDescriptions), len(dest))
 	}
 
 	for i, d := range dest {
@@ -332,7 +339,7 @@ func ScanRow(connInfo *pgtype.ConnInfo, fieldDescriptions []pgproto3.FieldDescri
 
 		err := connInfo.Scan(fieldDescriptions[i].DataTypeOID, fieldDescriptions[i].Format, values[i], d)
 		if err != nil {
-			return scanArgError{col: i, err: err}
+			return ScanArgError{ColumnIndex: i, Err: err}
 		}
 	}
 

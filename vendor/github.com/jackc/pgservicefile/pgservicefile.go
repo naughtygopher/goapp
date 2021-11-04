@@ -60,7 +60,7 @@ func ParseServicefile(r io.Reader) (*Servicefile, error) {
 		} else {
 			parts := strings.SplitN(line, "=", 2)
 			if len(parts) != 2 {
-				fmt.Errorf("unable to parse line %d", lineNum)
+				return nil, fmt.Errorf("unable to parse line %d", lineNum)
 			}
 
 			key := strings.TrimSpace(parts[0])

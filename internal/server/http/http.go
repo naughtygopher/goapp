@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/bnkamalesh/errors"
-	"github.com/bnkamalesh/webgo/v4"
-	"github.com/bnkamalesh/webgo/v4/middleware"
+	"github.com/bnkamalesh/webgo/v6"
+	"github.com/bnkamalesh/webgo/v6/middleware/accesslog"
 	"go.elastic.co/apm"
 	"go.elastic.co/apm/module/apmhttp"
 
@@ -167,15 +167,12 @@ func NewService(cfg *Config, a *api.API) (*HTTP, error) {
 			WriteTimeout:    cfg.WriteTimeout,
 			ShutdownTimeout: cfg.WriteTimeout * 2,
 		},
-		h.routes(),
+		h.routes()...,
 	)
 
-	router.Use(middleware.AccessLog)
+	router.Use(accesslog.AccessLog)
 	router.Use(panicRecoverer)
-	tracer, _ := apm.NewTracer(
-		"goapp",
-		"v1.1.3",
-	)
+	tracer, _ := apm.NewTracer("goapp", "v1.1.3")
 
 	serverHandler := apmhttp.Wrap(
 		router,

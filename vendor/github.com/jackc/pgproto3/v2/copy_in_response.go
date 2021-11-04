@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 
 	"github.com/jackc/pgio"
 )
@@ -48,6 +49,7 @@ func (src *CopyInResponse) Encode(dst []byte) []byte {
 	sp := len(dst)
 	dst = pgio.AppendInt32(dst, -1)
 
+	dst = append(dst, src.OverallFormat)
 	dst = pgio.AppendUint16(dst, uint16(len(src.ColumnFormatCodes)))
 	for _, fc := range src.ColumnFormatCodes {
 		dst = pgio.AppendUint16(dst, fc)
@@ -67,4 +69,28 @@ func (src CopyInResponse) MarshalJSON() ([]byte, error) {
 		Type:              "CopyInResponse",
 		ColumnFormatCodes: src.ColumnFormatCodes,
 	})
+}
+
+// UnmarshalJSON implements encoding/json.Unmarshaler.
+func (dst *CopyInResponse) UnmarshalJSON(data []byte) error {
+	// Ignore null, like in the main JSON package.
+	if string(data) == "null" {
+		return nil
+	}
+
+	var msg struct {
+		OverallFormat     string
+		ColumnFormatCodes []uint16
+	}
+	if err := json.Unmarshal(data, &msg); err != nil {
+		return err
+	}
+
+	if len(msg.OverallFormat) != 1 {
+		return errors.New("invalid length for CopyInResponse.OverallFormat")
+	}
+
+	dst.OverallFormat = msg.OverallFormat[0]
+	dst.ColumnFormatCodes = msg.ColumnFormatCodes
+	return nil
 }

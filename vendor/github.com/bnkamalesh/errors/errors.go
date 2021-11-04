@@ -2,6 +2,8 @@
 package errors
 
 import (
+	"fmt"
+	"io"
 	"net/http"
 	"runtime"
 	"strings"
@@ -62,60 +64,77 @@ type Error struct {
 func (e *Error) Error() string {
 	if e.original != nil {
 		// string concatenation with + is ~100x faster than fmt.Sprintf()
-		return e.fileLine + " " + e.original.Error()
-		/*
-			// use the following code instead of the above return, to avoid nested filename:line
-			err, _ := e.original.(*Error)
-			if err != nil {
-			    return err.Error()
-			}
-			return fmt.Sprintf("%s %s", e.fileLine, e.original.Error())
-		*/
+		return e.fileLine + ": " + e.message + "\n" + e.original.Error()
 	}
 
 	if e.message != "" {
 		// string concatenation with + is ~100x faster than fmt.Sprintf()
-		return e.fileLine + " " + e.message
+		return e.fileLine + ": " + e.message
 	}
 
 	// string concatenation with + is ~100x faster than fmt.Sprintf()
-	return e.fileLine + " " + DefaultMessage
+	return e.fileLine + ": " + DefaultMessage
 }
 
-// Message returns the user friendly message stored in the error struct
+// ErrorWithoutFileLine prints the final string without the stack trace / file+line number
+func (e *Error) ErrorWithoutFileLine() string {
+	if e.original != nil {
+		if e.message != "" {
+			// string concatenation with + is ~100x faster than fmt.Sprintf()
+			msg := e.message + ": "
+			if o, ok := e.original.(*Error); ok {
+				msg += o.ErrorWithoutFileLine()
+			} else {
+				msg += e.original.Error()
+			}
+			return msg
+		}
+		return e.original.Error()
+	}
+
+	if e.message != "" {
+		// string concatenation with + is ~100x faster than fmt.Sprintf()
+		return e.message
+	}
+
+	// string concatenation with + is ~100x faster than fmt.Sprintf()
+	return e.fileLine
+}
+
+// Message returns the user friendly message stored in the error struct. It will ignore all errors
+// which are not of type *Error
 func (e *Error) Message() string {
 	messages := make([]string, 0, 5)
-	messages = append(messages, e.message)
+	if e.message != "" {
+		messages = append(messages, e.message)
+	}
 
 	err, _ := e.original.(*Error)
 	for err != nil {
+		if err.message == "" {
+			err, _ = err.original.(*Error)
+			continue
+		}
 		messages = append(messages, err.message)
 		err, _ = err.original.(*Error)
 	}
 
-	if len(messages) > 1 {
-		return strings.Join(messages, ". ")
+	if len(messages) > 0 {
+		return strings.Join(messages, ": ")
 	}
 
-	return e.message
+	return e.Error()
 }
 
 // Unwrap implement's Go 1.13's Unwrap interface exposing the wrapped error
 func (e *Error) Unwrap() error {
-	if e.original == nil {
-		return nil
-	}
-
 	return e.original
 }
 
 // Is implements the Is interface required by Go
 func (e *Error) Is(err error) bool {
 	o, _ := err.(*Error)
-	if o == nil {
-		return false
-	}
-	return o == e
+	return o != nil && o == e
 }
 
 // HTTPStatusCode is a convenience method used to get the appropriate HTTP response status code for the respective error type
@@ -173,10 +192,50 @@ func (e *Error) Type() errType {
 	return e.eType
 }
 
+// Format implements the verbs supported by Error to be used in fmt annotated/formatted strings
+/*
+%v  - the same output as Message(). i.e. recursively get all the custom messages set by user
+    - if any of the wrapped error is not of type *Error, that will *not* be displayed
+%+v - recursively prints all the messages along with the file & line number. Also includes output of `Error()` of
+non *Error types.
+
+%s  - identical to %v
+%+s - recursively prints all the messages without file & line number. Also includes output `Error()` of
+non *Error types.
+*/
+
+func (e *Error) Format(s fmt.State, verb rune) {
+	switch verb {
+	case 'v':
+		if s.Flag('+') {
+			io.WriteString(s, e.Error())
+		} else {
+			io.WriteString(s, e.Message())
+		}
+	case 's':
+		{
+			if s.Flag('+') {
+				io.WriteString(s, e.ErrorWithoutFileLine())
+			} else {
+				io.WriteString(s, e.Message())
+			}
+		}
+	}
+}
+
 // New returns a new instance of Error with the relavant fields initialized
 func New(msg string) *Error {
 	_, file, line, _ := runtime.Caller(1)
 	return newerr(nil, msg, file, line, defaultErrType)
+}
+
+func Newf(fromat string, args ...interface{}) *Error {
+	_, file, line, _ := runtime.Caller(1)
+	return newerrf(nil, file, line, defaultErrType, fromat, args...)
+}
+func Errorf(fromat string, args ...interface{}) *Error {
+	_, file, line, _ := runtime.Caller(1)
+	return newerrf(nil, file, line, defaultErrType, fromat, args...)
 }
 
 // SetDefaultType will set the default error type, which is used in the 'New' function

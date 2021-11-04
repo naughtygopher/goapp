@@ -15,19 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package apmhttp
+package apmhttp // import "go.elastic.co/apm/module/apmhttp"
 
 import (
 	"net/http"
 	"regexp"
 	"sync"
 
+	"go.elastic.co/apm"
 	"go.elastic.co/apm/internal/configutil"
 	"go.elastic.co/apm/internal/wildcard"
 )
 
 const (
-	envIgnoreURLs = "ELASTIC_APM_IGNORE_URLS"
+	envIgnoreURLs           = "ELASTIC_APM_TRANSACTION_IGNORE_URLS"
+	deprecatedEnvIgnoreURLs = "ELASTIC_APM_IGNORE_URLS"
 )
 
 var (
@@ -36,17 +38,30 @@ var (
 )
 
 // DefaultServerRequestIgnorer returns the default RequestIgnorer to use in
-// handlers. If ELASTIC_APM_IGNORE_URLS is set, it will be treated as a
+// handlers. If ELASTIC_APM_TRANSACTION_IGNORE_URLS is set, it will be treated as a
 // comma-separated list of wildcard patterns; requests that match any of the
 // patterns will be ignored.
+//
+// DEPRECATED. Use NewDynamicServerRequestIgnorer instead
 func DefaultServerRequestIgnorer() RequestIgnorerFunc {
 	defaultServerRequestIgnorerOnce.Do(func() {
 		matchers := configutil.ParseWildcardPatternsEnv(envIgnoreURLs, nil)
+		if len(matchers) == 0 {
+			matchers = configutil.ParseWildcardPatternsEnv(deprecatedEnvIgnoreURLs, nil)
+		}
 		if len(matchers) != 0 {
 			defaultServerRequestIgnorer = NewWildcardPatternsRequestIgnorer(matchers)
 		}
 	})
 	return defaultServerRequestIgnorer
+}
+
+// NewDynamicServerRequestIgnorer returns the RequestIgnorer to use in
+// handlers. The list of wildcard patterns comes from central config
+func NewDynamicServerRequestIgnorer(t *apm.Tracer) RequestIgnorerFunc {
+	return func(r *http.Request) bool {
+		return t.IgnoredTransactionURL(r.URL)
+	}
 }
 
 // NewRegexpRequestIgnorer returns a RequestIgnorerFunc which matches requests'

@@ -64,7 +64,7 @@ func (res *Resource) Destroy() {
 	if res.status != resourceStatusAcquired {
 		panic("tried to destroy resource that is not acquired")
 	}
-	res.pool.destroyAcquiredResource(res)
+	go res.pool.destroyAcquiredResource(res)
 }
 
 // Hijack assumes ownership of the resource from the pool. Caller is responsible
@@ -175,7 +175,9 @@ type Stat struct {
 	canceledAcquireCount  int64
 }
 
-// TotalResource returns the total number of resources.
+// TotalResource returns the total number of resources currently in the pool.
+// The value is the sum of ConstructingResources, AcquiredResources, and
+// IdleResources.
 func (s *Stat) TotalResources() int32 {
 	return s.constructingResources + s.acquiredResources + s.idleResources
 }
@@ -186,12 +188,12 @@ func (s *Stat) ConstructingResources() int32 {
 	return s.constructingResources
 }
 
-// AcquiredResources returns the number of acquired resources in the pool.
+// AcquiredResources returns the number of currently acquired resources in the pool.
 func (s *Stat) AcquiredResources() int32 {
 	return s.acquiredResources
 }
 
-// IdleResources returns the number of idle resources in the pool.
+// IdleResources returns the number of currently idle resources in the pool.
 func (s *Stat) IdleResources() int32 {
 	return s.idleResources
 }
@@ -201,7 +203,7 @@ func (s *Stat) MaxResources() int32 {
 	return s.maxResources
 }
 
-// AcquireCount returns the number of successful acquires from the pool.
+// AcquireCount returns the cumulative count of successful acquires from the pool.
 func (s *Stat) AcquireCount() int64 {
 	return s.acquireCount
 }
@@ -212,14 +214,14 @@ func (s *Stat) AcquireDuration() time.Duration {
 	return s.acquireDuration
 }
 
-// EmptyAcquireCount returns the number of successful acquires from the pool
+// EmptyAcquireCount returns the cumulative count of successful acquires from the pool
 // that waited for a resource to be released or constructed because the pool was
 // empty.
 func (s *Stat) EmptyAcquireCount() int64 {
 	return s.emptyAcquireCount
 }
 
-// CanceledAcquireCount returns the number of acquires from the pool
+// CanceledAcquireCount returns the cumulative count of acquires from the pool
 // that were canceled by a context.
 func (s *Stat) CanceledAcquireCount() int64 {
 	return s.canceledAcquireCount
@@ -314,6 +316,7 @@ func (p *Pool) Acquire(ctx context.Context) (*Resource, error) {
 				}
 
 				p.cond.L.Unlock()
+				p.cond.Signal()
 				return nil, err
 			}
 
@@ -400,6 +403,7 @@ func (p *Pool) CreateResource(ctx context.Context) error {
 		value:        value,
 		lastUsedNano: nanotime(),
 	}
+	p.destructWG.Add(1)
 
 	p.cond.L.Lock()
 	// If closed while constructing resource then destroy it and return an error
@@ -409,7 +413,6 @@ func (p *Pool) CreateResource(ctx context.Context) error {
 	}
 	p.allResources = append(p.allResources, res)
 	p.idleResources = append(p.idleResources, res)
-	p.destructWG.Add(1)
 	p.cond.L.Unlock()
 
 	return nil
@@ -435,11 +438,9 @@ func (p *Pool) releaseAcquiredResource(res *Resource, lastUsedNano int64) {
 // Remove removes res from the pool and closes it. If res is not part of the
 // pool Remove will panic.
 func (p *Pool) destroyAcquiredResource(res *Resource) {
+	p.destructResourceValue(res.value)
 	p.cond.L.Lock()
-
 	p.allResources = removeResource(p.allResources, res)
-	go p.destructResourceValue(res.value)
-
 	p.cond.L.Unlock()
 	p.cond.Signal()
 }

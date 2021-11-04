@@ -1,6 +1,6 @@
 # go-sysinfo
 
-[![Build Status](http://img.shields.io/travis/elastic/go-sysinfo.svg?style=flat-square)][travis]
+[![Build Status](https://beats-ci.elastic.co/job/Library/job/go-sysinfo-mbp/job/master/badge/icon)](https://beats-ci.elastic.co/job/Library/job/go-sysinfo-mbp/job/master/)
 [![Go Documentation](http://img.shields.io/badge/go-documentation-blue.svg?style=flat-square)][godocs]
 
 [travis]: http://travis-ci.org/elastic/go-sysinfo
@@ -31,24 +31,24 @@ if handleCounter, ok := process.(types.OpenHandleCounter); ok {
 These tables show what methods are implemented as well as the extra interfaces
 that are implemented.
 
-| `Host` Features  | Darwin | Linux | Windows |
-|------------------|--------|-------|---------|
-| `Info()`         | x      | x     | x       |
-| `Memory()`       | x      | x     | x       |
-| `CPUTimer`       | x      | x     | x       |
-| `VMStat`         |        | x     |         |
+| `Host` Features  | Darwin | Linux | Windows | AIX/ppc64 |
+|------------------|--------|-------|---------|-----------|
+| `Info()`         | x      | x     | x       | x         |
+| `Memory()`       | x      | x     | x       | x         |
+| `CPUTimer`       | x      | x     | x       | x         |
+| `VMStat`         |        | x     |         |           |
+| `NetworkCounters`|        | x     |         |           |
 
-| `Process` Features     | Darwin | Linux | Windows |
-|------------------------|--------|-------|---------|
-| `Info()`               | x      | x     | x       |
-| `Memory()`             | x      | x     | x       |
-| `User()`               | x      | x     | x       |
-| `Parent()`             | x      | x     | x       |
-| `CPUTimer`             | x      | x     | x       |
-| `Environment`          | x      | x     |         |
-| `OpenHandleEnumerator` |        | x     |         |
-| `OpenHandleCounter`    |        | x     |         |
-| `Seccomp`              |        | x     |         |
-| `Capabilities`         |        | x     |         |
-
-
+| `Process` Features     | Darwin | Linux | Windows | AIX/ppc64 |
+|------------------------|--------|-------|---------|-----------|
+| `Info()`               | x      | x     | x       | x         |
+| `Memory()`             | x      | x     | x       | x         |
+| `User()`               | x      | x     | x       | x         |
+| `Parent()`             | x      | x     | x       | x         |
+| `CPUTimer`             | x      | x     | x       | x         |
+| `Environment`          | x      | x     |         | x         |
+| `OpenHandleEnumerator` |        | x     |         |           |
+| `OpenHandleCounter`    |        | x     |         |           |
+| `Seccomp`              |        | x     |         |           |
+| `Capabilities`         |        | x     |         |           |
+| `NetworkCounters`      |        | x     |         |           |

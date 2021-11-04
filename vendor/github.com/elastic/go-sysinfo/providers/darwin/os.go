@@ -81,6 +81,7 @@ func getOSInfo(data []byte) (*types.OSInfo, error) {
 	}
 
 	return &types.OSInfo{
+		Type:     "macos",
 		Family:   "darwin",
 		Platform: "darwin",
 		Name:     productName,

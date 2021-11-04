@@ -86,7 +86,11 @@ func (d *updateData) ToSql() (sqlStr string, args []interface{}, err error) {
 			if err != nil {
 				return "", nil, err
 			}
-			valSql = vsql
+			if _, ok := vs.(SelectBuilder); ok {
+				valSql = fmt.Sprintf("(%s)", vsql)
+			} else {
+				valSql = vsql
+			}
 			args = append(args, vargs...)
 		} else {
 			valSql = "?"
@@ -181,6 +185,16 @@ func (b UpdateBuilder) Scan(dest ...interface{}) error {
 func (b UpdateBuilder) ToSql() (string, []interface{}, error) {
 	data := builder.GetStruct(b).(updateData)
 	return data.ToSql()
+}
+
+// MustSql builds the query into a SQL string and bound args.
+// It panics if there are any errors.
+func (b UpdateBuilder) MustSql() (string, []interface{}) {
+	sql, args, err := b.ToSql()
+	if err != nil {
+		panic(err)
+	}
+	return sql, args
 }
 
 // Prefix adds an expression to the beginning of the query

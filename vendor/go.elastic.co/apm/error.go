@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package apm
+package apm // import "go.elastic.co/apm"
 
 import (
 	"crypto/rand"
@@ -148,6 +148,7 @@ func (t *Tracer) newError() *Error {
 	if e.recording {
 		e.Timestamp = time.Now()
 		e.Context.captureHeaders = instrumentationConfig.captureHeaders
+		e.Context.sanitizedFieldNames = instrumentationConfig.sanitizedFieldNames
 		e.stackTraceLimit = instrumentationConfig.stackTraceLimit
 	}
 

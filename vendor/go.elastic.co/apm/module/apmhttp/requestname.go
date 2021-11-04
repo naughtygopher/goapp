@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build go1.10
 // +build go1.10
 
-package apmhttp
+package apmhttp // import "go.elastic.co/apm/module/apmhttp"
 
 import (
 	"net/http"

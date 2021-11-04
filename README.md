@@ -214,7 +214,7 @@ So whenever I'm ready to commit
 
 ```bash
 $ cd /path/to/go/project
-$ gomodevndor
+$ gomodvendor
 $ git add -f vendor
 ```
 

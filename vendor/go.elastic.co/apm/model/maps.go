@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package model
+package model // import "go.elastic.co/apm/model"
 
 // StringMap is a slice-representation of map[string]string,
 // optimized for fast JSON encoding.

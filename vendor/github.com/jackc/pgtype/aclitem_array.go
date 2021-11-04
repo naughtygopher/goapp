@@ -4,8 +4,8 @@ package pgtype
 
 import (
 	"database/sql/driver"
-
-	errors "golang.org/x/xerrors"
+	"fmt"
+	"reflect"
 )
 
 type ACLItemArray struct {
@@ -28,6 +28,7 @@ func (dst *ACLItemArray) Set(src interface{}) error {
 		}
 	}
 
+	// Attempt to match to select common types:
 	switch value := src.(type) {
 
 	case []string:
@@ -81,13 +82,97 @@ func (dst *ACLItemArray) Set(src interface{}) error {
 			}
 		}
 	default:
-		if originalSrc, ok := underlyingSliceType(src); ok {
-			return dst.Set(originalSrc)
+		// Fallback to reflection if an optimised match was not found.
+		// The reflection is necessary for arrays and multidimensional slices,
+		// but it comes with a 20-50% performance penalty for large arrays/slices
+		reflectedValue := reflect.ValueOf(src)
+		if !reflectedValue.IsValid() || reflectedValue.IsZero() {
+			*dst = ACLItemArray{Status: Null}
+			return nil
 		}
-		return errors.Errorf("cannot convert %v to ACLItemArray", value)
+
+		dimensions, elementsLength, ok := findDimensionsFromValue(reflectedValue, nil, 0)
+		if !ok {
+			return fmt.Errorf("cannot find dimensions of %v for ACLItemArray", src)
+		}
+		if elementsLength == 0 {
+			*dst = ACLItemArray{Status: Present}
+			return nil
+		}
+		if len(dimensions) == 0 {
+			if originalSrc, ok := underlyingSliceType(src); ok {
+				return dst.Set(originalSrc)
+			}
+			return fmt.Errorf("cannot convert %v to ACLItemArray", src)
+		}
+
+		*dst = ACLItemArray{
+			Elements:   make([]ACLItem, elementsLength),
+			Dimensions: dimensions,
+			Status:     Present,
+		}
+		elementCount, err := dst.setRecursive(reflectedValue, 0, 0)
+		if err != nil {
+			// Maybe the target was one dimension too far, try again:
+			if len(dst.Dimensions) > 1 {
+				dst.Dimensions = dst.Dimensions[:len(dst.Dimensions)-1]
+				elementsLength = 0
+				for _, dim := range dst.Dimensions {
+					if elementsLength == 0 {
+						elementsLength = int(dim.Length)
+					} else {
+						elementsLength *= int(dim.Length)
+					}
+				}
+				dst.Elements = make([]ACLItem, elementsLength)
+				elementCount, err = dst.setRecursive(reflectedValue, 0, 0)
+				if err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		}
+		if elementCount != len(dst.Elements) {
+			return fmt.Errorf("cannot convert %v to ACLItemArray, expected %d dst.Elements, but got %d instead", src, len(dst.Elements), elementCount)
+		}
 	}
 
 	return nil
+}
+
+func (dst *ACLItemArray) setRecursive(value reflect.Value, index, dimension int) (int, error) {
+	switch value.Kind() {
+	case reflect.Array:
+		fallthrough
+	case reflect.Slice:
+		if len(dst.Dimensions) == dimension {
+			break
+		}
+
+		valueLen := value.Len()
+		if int32(valueLen) != dst.Dimensions[dimension].Length {
+			return 0, fmt.Errorf("multidimensional arrays must have array expressions with matching dimensions")
+		}
+		for i := 0; i < valueLen; i++ {
+			var err error
+			index, err = dst.setRecursive(value.Index(i), index, dimension+1)
+			if err != nil {
+				return 0, err
+			}
+		}
+
+		return index, nil
+	}
+	if !value.CanInterface() {
+		return 0, fmt.Errorf("cannot convert all values to ACLItemArray")
+	}
+	if err := dst.Elements[index].Set(value.Interface()); err != nil {
+		return 0, fmt.Errorf("%v in ACLItemArray", err)
+	}
+	index++
+
+	return index, nil
 }
 
 func (dst ACLItemArray) Get() interface{} {
@@ -104,37 +189,118 @@ func (dst ACLItemArray) Get() interface{} {
 func (src *ACLItemArray) AssignTo(dst interface{}) error {
 	switch src.Status {
 	case Present:
-		switch v := dst.(type) {
+		if len(src.Dimensions) <= 1 {
+			// Attempt to match to select common types:
+			switch v := dst.(type) {
 
-		case *[]string:
-			*v = make([]string, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]string:
+				*v = make([]string, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		case *[]*string:
-			*v = make([]*string, len(src.Elements))
-			for i := range src.Elements {
-				if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
-					return err
+			case *[]*string:
+				*v = make([]*string, len(src.Elements))
+				for i := range src.Elements {
+					if err := src.Elements[i].AssignTo(&((*v)[i])); err != nil {
+						return err
+					}
 				}
-			}
-			return nil
+				return nil
 
-		default:
-			if nextDst, retry := GetAssignToDstType(dst); retry {
-				return src.AssignTo(nextDst)
 			}
-			return errors.Errorf("unable to assign to %T", dst)
 		}
+
+		// Try to convert to something AssignTo can use directly.
+		if nextDst, retry := GetAssignToDstType(dst); retry {
+			return src.AssignTo(nextDst)
+		}
+
+		// Fallback to reflection if an optimised match was not found.
+		// The reflection is necessary for arrays and multidimensional slices,
+		// but it comes with a 20-50% performance penalty for large arrays/slices
+		value := reflect.ValueOf(dst)
+		if value.Kind() == reflect.Ptr {
+			value = value.Elem()
+		}
+
+		switch value.Kind() {
+		case reflect.Array, reflect.Slice:
+		default:
+			return fmt.Errorf("cannot assign %T to %T", src, dst)
+		}
+
+		if len(src.Elements) == 0 {
+			if value.Kind() == reflect.Slice {
+				value.Set(reflect.MakeSlice(value.Type(), 0, 0))
+				return nil
+			}
+		}
+
+		elementCount, err := src.assignToRecursive(value, 0, 0)
+		if err != nil {
+			return err
+		}
+		if elementCount != len(src.Elements) {
+			return fmt.Errorf("cannot assign %v, needed to assign %d elements, but only assigned %d", dst, len(src.Elements), elementCount)
+		}
+
+		return nil
 	case Null:
 		return NullAssignTo(dst)
 	}
 
-	return errors.Errorf("cannot decode %#v into %T", src, dst)
+	return fmt.Errorf("cannot decode %#v into %T", src, dst)
+}
+
+func (src *ACLItemArray) assignToRecursive(value reflect.Value, index, dimension int) (int, error) {
+	switch kind := value.Kind(); kind {
+	case reflect.Array:
+		fallthrough
+	case reflect.Slice:
+		if len(src.Dimensions) == dimension {
+			break
+		}
+
+		length := int(src.Dimensions[dimension].Length)
+		if reflect.Array == kind {
+			typ := value.Type()
+			if typ.Len() != length {
+				return 0, fmt.Errorf("expected size %d array, but %s has size %d array", length, typ, typ.Len())
+			}
+			value.Set(reflect.New(typ).Elem())
+		} else {
+			value.Set(reflect.MakeSlice(value.Type(), length, length))
+		}
+
+		var err error
+		for i := 0; i < length; i++ {
+			index, err = src.assignToRecursive(value.Index(i), index, dimension+1)
+			if err != nil {
+				return 0, err
+			}
+		}
+
+		return index, nil
+	}
+	if len(src.Dimensions) != dimension {
+		return 0, fmt.Errorf("incorrect dimensions, expected %d, found %d", len(src.Dimensions), dimension)
+	}
+	if !value.CanAddr() {
+		return 0, fmt.Errorf("cannot assign all values from ACLItemArray")
+	}
+	addr := value.Addr()
+	if !addr.CanInterface() {
+		return 0, fmt.Errorf("cannot assign all values from ACLItemArray")
+	}
+	if err := src.Elements[index].AssignTo(addr.Interface()); err != nil {
+		return 0, err
+	}
+	index++
+	return index, nil
 }
 
 func (dst *ACLItemArray) DecodeText(ci *ConnInfo, src []byte) error {
@@ -156,7 +322,7 @@ func (dst *ACLItemArray) DecodeText(ci *ConnInfo, src []byte) error {
 		for i, s := range uta.Elements {
 			var elem ACLItem
 			var elemSrc []byte
-			if s != "NULL" {
+			if s != "NULL" || uta.Quoted[i] {
 				elemSrc = []byte(s)
 			}
 			err = elem.DecodeText(ci, elemSrc)
@@ -245,7 +411,7 @@ func (dst *ACLItemArray) Scan(src interface{}) error {
 		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return errors.Errorf("cannot scan %T", src)
+	return fmt.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.

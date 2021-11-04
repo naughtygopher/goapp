@@ -24,14 +24,26 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.elastic.co/fastjson"
 )
 
+const (
+	// EnvLogFile is the environment variable that controls where the default logger writes.
+	EnvLogFile = "ELASTIC_APM_LOG_FILE"
+
+	// EnvLogLevel is the environment variable that controls the default logger's level.
+	EnvLogLevel = "ELASTIC_APM_LOG_LEVEL"
+
+	// DefaultLevel holds the default log level, if EnvLogLevel is not specified.
+	DefaultLevel Level = ErrorLevel
+)
+
 var (
 	// DefaultLogger is the default Logger to use, if ELASTIC_APM_LOG_* are specified.
-	DefaultLogger Logger
+	DefaultLogger *LevelLogger
 
 	fastjsonPool = &sync.Pool{
 		New: func() interface{} {
@@ -41,12 +53,15 @@ var (
 )
 
 func init() {
-	initDefaultLogger()
+	InitDefaultLogger()
 }
 
-func initDefaultLogger() {
-	fileStr := strings.TrimSpace(os.Getenv("ELASTIC_APM_LOG_FILE"))
+// InitDefaultLogger initialises DefaultLogger using the environment variables
+// ELASTIC_APM_LOG_FILE and ELASTIC_APM_LOG_LEVEL.
+func InitDefaultLogger() {
+	fileStr := strings.TrimSpace(os.Getenv(EnvLogFile))
 	if fileStr == "" {
+		DefaultLogger = nil
 		return
 	}
 
@@ -65,85 +80,109 @@ func initDefaultLogger() {
 		logWriter = &syncFile{File: f}
 	}
 
-	logLevel := errorLevel
-	if levelStr := strings.TrimSpace(os.Getenv("ELASTIC_APM_LOG_LEVEL")); levelStr != "" {
-		level, err := parseLogLevel(levelStr)
+	logLevel := DefaultLevel
+	if levelStr := strings.TrimSpace(os.Getenv(EnvLogLevel)); levelStr != "" {
+		level, err := ParseLogLevel(levelStr)
 		if err != nil {
-			log.Printf("invalid ELASTIC_APM_LOG_LEVEL %q, falling back to %q", levelStr, logLevel)
+			log.Printf("invalid %s %q, falling back to %q", EnvLogLevel, levelStr, logLevel)
 		} else {
 			logLevel = level
 		}
 	}
-	DefaultLogger = levelLogger{w: logWriter, level: logLevel}
+	DefaultLogger = &LevelLogger{w: logWriter, level: logLevel}
 }
 
+// Log levels.
 const (
-	debugLevel logLevel = iota
-	infoLevel
-	warnLevel
-	errorLevel
-	noLevel
+	TraceLevel Level = iota
+	DebugLevel
+	InfoLevel
+	WarningLevel
+	ErrorLevel
+	CriticalLevel
+	OffLevel
 )
 
-type logLevel uint8
+// Level represents a log level.
+type Level uint32
 
-func (l logLevel) String() string {
+func (l Level) String() string {
 	switch l {
-	case debugLevel:
+	case TraceLevel:
+		return "trace"
+	case DebugLevel:
 		return "debug"
-	case infoLevel:
+	case InfoLevel:
 		return "info"
-	case warnLevel:
-		return "warn"
-	case errorLevel:
+	case WarningLevel:
+		return "warning"
+	case ErrorLevel:
 		return "error"
+	case CriticalLevel:
+		return "critical"
+	case OffLevel:
+		return "off"
 	}
 	return ""
 }
 
-func parseLogLevel(s string) (logLevel, error) {
+// ParseLogLevel parses s as a log level.
+func ParseLogLevel(s string) (Level, error) {
 	switch strings.ToLower(s) {
+	case "trace":
+		return TraceLevel, nil
 	case "debug":
-		return debugLevel, nil
+		return DebugLevel, nil
 	case "info":
-		return infoLevel, nil
-	case "warn":
-		return warnLevel, nil
+		return InfoLevel, nil
+	case "warn", "warning":
+		// "warn" exists for backwards compatibility;
+		// "warning" is the canonical level name.
+		return WarningLevel, nil
 	case "error":
-		return errorLevel, nil
+		return ErrorLevel, nil
+	case "critical":
+		return CriticalLevel, nil
+	case "off":
+		return OffLevel, nil
 	}
-	return noLevel, fmt.Errorf("invalid log level string %q", s)
+	return OffLevel, fmt.Errorf("invalid log level string %q", s)
 }
 
-// Logger provides methods for logging.
-type Logger interface {
-	Debugf(format string, args ...interface{})
-	Errorf(format string, args ...interface{})
-	Warningf(format string, args ...interface{})
-}
-
-type levelLogger struct {
+// LevelLogger is a level logging implementation that will log to a file,
+// stdout, or stderr. The level may be updated dynamically via SetLevel.
+type LevelLogger struct {
+	level Level // should be accessed with sync/atomic
 	w     io.Writer
-	level logLevel
+}
+
+// Level returns the current logging level.
+func (l *LevelLogger) Level() Level {
+	return Level(atomic.LoadUint32((*uint32)(&l.level)))
+}
+
+// SetLevel sets level as the minimum logging level.
+func (l *LevelLogger) SetLevel(level Level) {
+	atomic.StoreUint32((*uint32)(&l.level), uint32(level))
 }
 
 // Debugf logs a message with log.Printf, with a DEBUG prefix.
-func (l levelLogger) Debugf(format string, args ...interface{}) {
-	l.logf(debugLevel, format, args...)
+func (l *LevelLogger) Debugf(format string, args ...interface{}) {
+	l.logf(DebugLevel, format, args...)
 }
 
 // Errorf logs a message with log.Printf, with an ERROR prefix.
-func (l levelLogger) Errorf(format string, args ...interface{}) {
-	l.logf(errorLevel, format, args...)
+func (l *LevelLogger) Errorf(format string, args ...interface{}) {
+	l.logf(ErrorLevel, format, args...)
 }
 
 // Warningf logs a message with log.Printf, with a WARNING prefix.
-func (l levelLogger) Warningf(format string, args ...interface{}) {
-	l.logf(warnLevel, format, args...)
+func (l *LevelLogger) Warningf(format string, args ...interface{}) {
+	l.logf(WarningLevel, format, args...)
 }
 
-func (l levelLogger) logf(level logLevel, format string, args ...interface{}) {
-	if level < l.level {
+func (l *LevelLogger) logf(level Level, format string, args ...interface{}) {
+	if level < l.Level() {
 		return
 	}
 	jw := fastjsonPool.Get().(*fastjson.Writer)

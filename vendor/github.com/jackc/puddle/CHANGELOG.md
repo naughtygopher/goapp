@@ -1,3 +1,12 @@
+# 1.1.3 (December 3, 2020)
+
+* Fix: Failed resource creation could cause concurrent Acquire to hang. (Evgeny Vanslov)
+
+# 1.1.2 (September 26, 2020)
+
+* Fix: Resource.Destroy no longer removes itself from the pool before its destructor has completed.
+* Fix: Prevent crash when pool is closed while resource is being created.
+
 # 1.1.1 (April 2, 2020)
 
 * Pool.Close can be safely called multiple times
