@@ -4,8 +4,8 @@ go 1.17
 
 require (
 	github.com/Masterminds/squirrel v1.5.1
-	github.com/bnkamalesh/errors v0.4.0
-	github.com/bnkamalesh/webgo/v6 v6.2.2
+	github.com/bnkamalesh/errors v0.9.0
+	github.com/bnkamalesh/webgo/v6 v6.3.1
 	github.com/gomodule/redigo v1.8.5
 	github.com/jackc/pgx/v4 v4.13.0
 	go.elastic.co/apm v1.14.0

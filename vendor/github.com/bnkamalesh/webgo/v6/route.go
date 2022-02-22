@@ -3,7 +3,6 @@ package webgo
 import (
 	"fmt"
 	"net/http"
-	"regexp"
 	"strings"
 )
 
@@ -26,12 +25,8 @@ type Route struct {
 	// subsequent writes from the following handlers will be ignored
 	Handlers []http.HandlerFunc
 
-	// uriKeys is the list of URI parameter variables available for this route
-	uriKeys []string
-	// uriPatternString is the pattern string which is compiled to regex object
-	uriPatternString string
-	// uriPattern is the compiled regex to match the URI pattern
-	uriPattern *regexp.Regexp
+	hasWildcard bool
+	parts       []routePart
 
 	// skipMiddleware if true, middleware added using `router` will not be applied to this Route.
 	// This is used only when a Route is set using the RouteGroup, which can have its own set of middleware
@@ -41,79 +36,48 @@ type Route struct {
 
 	serve http.HandlerFunc
 }
-
-// computePatternStr computes the pattern string required for generating the route's regex.
-// It also adds the URI parameter key to the route's `keys` field
-func (r *Route) computePatternStr(patternString string, hasWildcard bool, key string) (string, error) {
-	regexPattern := ""
-	patternKey := ""
-	if hasWildcard {
-		patternKey = fmt.Sprintf(":%s*", key)
-		regexPattern = urlwildcard
-		if r.TrailingSlash {
-			regexPattern = urlwildcardWithTrailslash
-		}
-	} else {
-		patternKey = fmt.Sprintf(":%s", key)
-		regexPattern = urlchars
-	}
-
-	patternString = strings.Replace(patternString, patternKey, regexPattern, 1)
-
-	for idx, k := range r.uriKeys {
-		if key == k {
-			return "", fmt.Errorf(
-				"%s\nURI:%s\nKey:%s, Position: %d",
-				errDuplicateKey,
-				r.Pattern,
-				k,
-				idx+1,
-			)
-		}
-	}
-
-	r.uriKeys = append(r.uriKeys, key)
-	return patternString, nil
+type routePart struct {
+	isVariable  bool
+	hasWildcard bool
+	// part will be the key name, if it's a variable/named URI parameter
+	part string
 }
 
-func (r *Route) parseURIWithParams(patternString string) (string, error) {
+func (r *Route) parseURIWithParams() {
+	// if there are no URI params, then there's no need to set route parts
 	if !strings.Contains(r.Pattern, ":") {
-		return patternString, nil
+		return
 	}
 
-	var err error
-	// uriValues is a map of URI Key and its respective value,
-	// this is calculated per request
-	key := ""
-	hasKey := false
-	hasWildcard := false
+	parts := strings.Split(r.Pattern, "/")
+	if len(parts) == 1 {
+		return
+	}
 
-	for i := 0; i < len(r.Pattern); i++ {
-		char := string(r.Pattern[i])
+	rparts := make([]routePart, 0, len(parts))
+	for _, part := range parts[1:] {
+		hasParam := false
+		hasWildcard := false
 
-		if char == ":" {
-			hasKey = true
-		} else if char == "*" {
+		if strings.Contains(part, ":") {
+			hasParam = true
+		}
+		if strings.Contains(part, "*") {
+			r.hasWildcard = true
 			hasWildcard = true
-		} else if hasKey && char != "/" {
-			key += char
-		} else if hasKey && len(key) > 0 {
-			patternString, err = r.computePatternStr(patternString, hasWildcard, key)
-			if err != nil {
-				return "", err
-			}
-			hasWildcard, hasKey = false, false
-			key = ""
 		}
-	}
 
-	if hasKey && len(key) > 0 {
-		patternString, err = r.computePatternStr(patternString, hasWildcard, key)
-		if err != nil {
-			return "", err
-		}
+		key := strings.ReplaceAll(part, ":", "")
+		key = strings.ReplaceAll(key, "*", "")
+		rparts = append(
+			rparts,
+			routePart{
+				isVariable:  hasParam,
+				hasWildcard: hasWildcard,
+				part:        key,
+			})
 	}
-	return patternString, nil
+	r.parts = rparts
 }
 
 // init prepares the URIKeys, compile regex for the provided pattern
@@ -121,28 +85,7 @@ func (r *Route) init() error {
 	if r.initialized {
 		return nil
 	}
-
-	patternString := r.Pattern
-
-	patternString, err := r.parseURIWithParams(patternString)
-	if err != nil {
-		return err
-	}
-
-	if r.TrailingSlash {
-		patternString = fmt.Sprintf("^%s%s$", patternString, trailingSlash)
-	} else {
-		patternString = fmt.Sprintf("^%s$", patternString)
-	}
-
-	// compile the regex for the pattern string calculated
-	reg, err := regexp.Compile(patternString)
-	if err != nil {
-		return err
-	}
-
-	r.uriPattern = reg
-	r.uriPatternString = patternString
+	r.parseURIWithParams()
 	r.serve = defaultRouteServe(r)
 
 	r.initialized = true
@@ -151,23 +94,72 @@ func (r *Route) init() error {
 
 // matchPath matches the requestURI with the URI pattern of the route.
 // If the path is an exact match (i.e. no URI parameters), then the second parameter ('isExactMatch') is true
-func (r *Route) matchPath(requestURI string) (bool, isExactMatch bool) {
-	if r.Pattern == requestURI {
-		return true, true
+func (r *Route) matchPath(requestURI string) (bool, map[string]string) {
+	p := r.Pattern
+	if r.TrailingSlash {
+		p += "/"
+	} else {
+		if requestURI[len(requestURI)-1] == '/' {
+			return false, nil
+		}
+	}
+	if r.Pattern == requestURI || p == requestURI {
+		return true, nil
 	}
 
-	return r.uriPattern.Match([]byte(requestURI)), false
+	return r.matchWithWildcard(requestURI)
 }
 
-func (r *Route) params(requestURI string) map[string]string {
-	params := r.uriPattern.FindStringSubmatch(requestURI)[1:]
-	uriValues := make(map[string]string, len(params))
+func (r *Route) matchWithWildcard(requestURI string) (bool, map[string]string) {
+	params := map[string]string{}
+	uriParts := strings.Split(requestURI, "/")[1:]
 
-	for i := 0; i < len(params); i++ {
-		uriValues[r.uriKeys[i]] = params[i]
+	partsLastIdx := len(r.parts) - 1
+	partIdx := 0
+	paramParts := make([]string, 0, len(uriParts))
+	for idx, part := range uriParts {
+		// if part is empty, it means it's end of URI with trailing slash
+		if part == "" {
+			break
+		}
+
+		if partIdx > partsLastIdx {
+			return false, nil
+		}
+
+		currentPart := r.parts[partIdx]
+		if !currentPart.isVariable && currentPart.part != part {
+			return false, nil
+		}
+
+		paramParts = append(paramParts, part)
+		if currentPart.isVariable {
+			params[currentPart.part] = strings.Join(paramParts, "/")
+		}
+
+		if !currentPart.hasWildcard {
+			paramParts = make([]string, 0, len(uriParts)-idx)
+			partIdx++
+			continue
+		}
+
+		nextIdx := partIdx + 1
+		if nextIdx > partsLastIdx {
+			continue
+		}
+		nextPart := r.parts[nextIdx]
+
+		// if the URI has more parts/params after wildcard,
+		// the immediately following part after wildcard cannot be a variable or another wildcard.
+		if !nextPart.isVariable && nextPart.part == part {
+			// remove the last added 'part' from parameters, as it's part of the static URI
+			params[currentPart.part] = strings.Join(paramParts[:len(paramParts)-1], "/")
+			paramParts = make([]string, 0, len(uriParts)-idx)
+			partIdx += 2
+		}
 	}
 
-	return uriValues
+	return true, params
 }
 
 func (r *Route) use(mm ...Middleware) {

@@ -109,13 +109,13 @@ func (crw *customResponseWriter) reset() {
 type Middleware func(http.ResponseWriter, *http.Request, http.HandlerFunc)
 
 // discoverRoute returns the correct 'route', for the given request
-func discoverRoute(path string, routes []*Route) *Route {
+func discoverRoute(path string, routes []*Route) (*Route, map[string]string) {
 	for _, route := range routes {
-		if ok, _ := route.matchPath(path); ok {
-			return route
+		if ok, params := route.matchPath(path); ok {
+			return route, params
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 // Router is the HTTP router
@@ -182,7 +182,7 @@ func (rtr *Router) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	path := r.URL.EscapedPath()
-	route := discoverRoute(path, routes)
+	route, params := discoverRoute(path, routes)
 	if route == nil {
 		// serve 404 when there are no matching routes
 		crw.statusCode = http.StatusNotFound
@@ -192,8 +192,8 @@ func (rtr *Router) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	ctxPayload := newContext()
-	ctxPayload.path = path
 	ctxPayload.Route = route
+	ctxPayload.URIParams = params
 
 	// webgo context is injected to the HTTP request context
 	*r = *r.WithContext(

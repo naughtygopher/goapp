@@ -4,10 +4,10 @@ github.com/Masterminds/squirrel
 # github.com/armon/go-radix v1.0.0
 ## explicit
 github.com/armon/go-radix
-# github.com/bnkamalesh/errors v0.4.0
+# github.com/bnkamalesh/errors v0.9.0
 ## explicit; go 1.14
 github.com/bnkamalesh/errors
-# github.com/bnkamalesh/webgo/v6 v6.2.2
+# github.com/bnkamalesh/webgo/v6 v6.3.1
 ## explicit; go 1.17
 github.com/bnkamalesh/webgo/v6
 github.com/bnkamalesh/webgo/v6/middleware/accesslog

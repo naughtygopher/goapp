@@ -8,7 +8,7 @@
 [![](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#tutorials)
 # Goapp
 
-This is an opinionated guideline to structure a Go web application/service (or could be extended for any application). My opinions were formed over a span of 5+ years building web applications/services with Go, trying to implement [DDD (Domain Driven Development)](https://en.wikipedia.org/wiki/Domain-driven_design) & [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html). Even though I've mentioned `go.mod` and `go.sum`, this guideline works for 1.4+ (i.e. since introduction of the [special 'internal' directory](https://golang.org/doc/go1.4#internalpackages)).
+This is an opinionated guideline to structure a Go web application/service (or could be extended for any application). My opinions were formed over a span of 7+ years building web applications/services with Go, trying to implement [DDD (Domain Driven Development)](https://en.wikipedia.org/wiki/Domain-driven_design) & [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html). Even though I've mentioned `go.mod` and `go.sum`, this guideline works for 1.4+ (i.e. since introduction of the [special 'internal' directory](https://go.dev/doc/go1.4#internalpackages)).
 
 P.S: This guideline is not directly applicable for an independent package, as their primary use is to be consumed in other applications. In such cases, having most or all of the package code in the root is probably the best way of doing it. And that is where Go's recommendation of "no unnecessary sub packages" shines.
 
@@ -21,9 +21,9 @@ In my effort to try and make things easier to understand, the structure is expla
 3. [API package](#internalapi)
 4. [Users](#internalusers) (would be common for all such business logic units, 'notes' being similar to users) package.
 5. [Testing](#internalusers_test)
-6. [Platform package](#internalplatform)
-    - 6.1. [datastore](#internalplatformdatastore)
-    - 6.2. [logger](#internalplatformlogger)
+6. [pkg package](#internalpkg)
+    - 6.1. [datastore](#internalpkgdatastore)
+    - 6.2. [logger](#internalpkglogger)
 7. [HTTP server](#internalhttp)
     - 7.1. [templates](#internalhttptemplates)
 8. [lib](#lib)
@@ -59,7 +59,7 @@ In my effort to try and make things easier to understand, the structure is expla
 |    |____notes
 |    |    |____notes.go
 |    |
-|    |____platform
+|    |____pkg
 |    |    |____stringutils
 |    |    |____datastore
 |    |    |     |____datastore.go
@@ -86,7 +86,7 @@ In my effort to try and make things easier to understand, the structure is expla
 |____vendor
 |
 |____docker
-|    |____Dockerfile # obviously your 'default' dockerfile
+|    |____Dockerfile # your 'default' dockerfile
 |
 |____go.mod
 |____go.sum
@@ -99,7 +99,7 @@ In my effort to try and make things easier to understand, the structure is expla
 
 ## internal
 
-["internal" is a special directory name in Go](https://golang.org/doc/go1.4#internalpackages), wherein any exported name/entity can only be consumed within its immediate parent.
+["internal" is a special directory name in Go](https://go.dev/doc/go1.4#internalpackages), wherein any exported name/entity can only be consumed within its immediate parent.
 
 ## internal/configs
 
@@ -146,11 +146,11 @@ P.S: I use [VSCode](https://code.visualstudio.com/) and it lets you auto [genera
 
 Similar to the users package, 'notes' handles all business logic related to 'notes'.
 
-## internal/platform
+## internal/pkg
 
-Platform package contains all the packages which are to be consumed across multiple packages within the project. For instance the datastore package will be consumed by both users and notes package. I'm not really particular about the name _platform_, but it's been stuck with me for a long time. This might as well be _pkg_, _utils_ etc.
+pkg package contains all the packages which are to be consumed across multiple packages within the project. For instance the datastore package will be consumed by both users and notes package. I'm not really particular about the name _pkg_. This might as well be _utils_ or some other generic name of your choice.
 
-### internal/platform/datastore
+### internal/pkg/datastore
 
 The datastore package initializes `pgxpool.Pool` and returns a new instance. I'm using Postgres as the datastore in this sample app. Why create such a package? I for instance had to because the packages we are using for Postgres did not have readymade APM integration. So started off by writing methods which we use in the app (and not 100% mirroring of the library), with APM integration. Did the same for cachestore as well. And it gets us beautiful insights like the following:
 
@@ -161,7 +161,7 @@ The datastore package initializes `pgxpool.Pool` and returns a new instance. I'm
 
 P.S: Similar to logger, we made these independent private packages hosted in our [VCS](https://en.wikipedia.org/wiki/Version_control). Shoutout to [Gitlab](https://gitlab.com/)!
 
-### internal/platform/logger
+### internal/pkg/logger
 
 I usually define the logging interface as well as the package, in a private repository (internal to your company e.g. vcs.yourcompany.io/gopkgs/logger), and is used across all services. Logging interface helps you to easily switch between different logging libraries, as all your apps would be using the interface **you** defined (interface segregation principle from SOLID). But here I'm making it part of the application itself as it has fewer chances of going wrong when trying to cater to a larger audience.
 
@@ -177,9 +177,9 @@ Keeping it at the root/outermost layer helps make things easier because you need
 
 For developers, while troubleshooting (which is one of the foremost need for logging), the line number along with filename helps a lot. Then it's obvious, log where the error occurs, right?
 
-Over the course of time, I found it's not really obvious. The more nested function calls you have, higher the chances of redundant logging. And setting up guidelines for your developers to only log at the origin of error is also not easy. A lot of developers get confused which level should be considered the origin (especially when there's deep nesting fn1 -> fn2 -> fn3 -> fn4). Thus I prefer logging at the API layer (and not handlers), [with annotated errors](https://golang.org/pkg/errors/)(using the '%w' verb in `fmt.Errorf`) to trace its origin. Recently I introduced a [minimal error handling package](https://github.com/bnkamalesh/errors/) which gives  long file path, line number of the origin of error as well as help set user friendly messages for API response.
+Over the course of time, I found it's not really obvious. The more nested function calls you have, higher the chances of redundant logging. And setting up guidelines for your developers to only log at the origin of error is also not easy. A lot of developers get confused which level should be considered the origin (especially when there's deep nesting fn1 -> fn2 -> fn3 -> fn4). Thus I prefer logging at the Handlers layer, [with annotated errors](https://pkg.go.dev/errors)(using the '%w' verb in `fmt.Errorf`) to trace its origin. Recently I introduced a [minimal error handling package](https://github.com/bnkamalesh/errors/) which gives long file path, line number of the origin of error, stacktrace etc. as well as help set user friendly messages for API response. My earlier recommendation was to use API package for logging, but in the past 2+ years (> 2019), figured out that it's better/easier to handle in handler layer. Now all the HTTP handlers return an error, and there's a wrapper to handle the logging (this is updated in the app as well) as well as responding to the HTTP request.
 
-Though there are some exceptions to logging at API layer alone, consider the case of `internal/users` package. I'm making use of cache, but it's a read-through cache. So even if there's a miss in cache or cache store is down altogether, the system should still work (a specific business logic). But then how do you find out if your cache is down when there are no logs? Hence you see the logger being made a dependency of users package. This would apply to any asynchronous behaviours as well, e.g. a queue subscriber
+Though there are some exceptions to logging at the outer most layer alone, consider the case of `internal/users` package. I'm making use of cache, but it's a read-through cache. So even if there's a miss in cache or cache store is down altogether, the system should still work (a specific business logic). But then how do you find out if your cache is down when there are no logs? Hence you see the logger being made a dependency of users package. This would apply to any asynchronous behaviours as well, e.g. a queue subscriber
 
 ## internal/server/http
 
@@ -195,7 +195,7 @@ All HTML templates required for the application are to be put here. Sub director
 
 ## lib
 
-This name is quite explicit and if you notice, it's outside of the special 'internal' directory. So within any exported name or entity within this directory, is meant for consumption in external projects. 
+This name is quite explicit and if you notice, it's outside of the special 'internal' directory. So any exported name or entity within this directory, is meant to be used in external projects. 
 
 It might seem redundant to add a sub-directory called 'goapp', the import path would be `github.com/bnkamalesh/goapp/lib/goapp`. Though this is not a mistake, while importing this package, you'd like to use it as follows `goapp.<something>`. So if you directly put it under lib, it'd be `lib.` and that's obviously too generic and you'd have to manually setup aliases every time. Or if you try solving it by having the package name which differ from the direcory name, it's going to be a tussle with your [IDE](https://en.wikipedia.org/wiki/Integrated_development_environment).
 
@@ -240,20 +240,23 @@ $ docker run -p 8080:8080 --rm -ti goapp
 
 All the SQL schemas required by the project in this directory. This is not nested inside individual package because it's not consumed by the application at all. Also the fact that, actual consumers of the schema (developers, DB maintainers etc.) are varied. It's better to make it easier for all the audience rather than just developers. Even if you use NoSQL databases, your application would need some sort of schema to function, which can still be maintained inside this.
 
+I've recently started using [sqlc](https://sqlc.dev/) for code generation for all SQL interactions (and love it!). I use [Squirrel](https://github.com/Masterminds/squirrel) whenever I need to dynamically build queries. E.g. when updating a table, you want to update only certain columns based on the input.  Also, this is a recommendation from a friend for maintaining SQL migrations, though I've never used it myself, [Goose](https://github.com/pressly/goose).
+
 ## main.go
 
 Finally the `main package`. I prefer putting the `main.go` file outside as shown here. No non-sense, straight up `go run main.go` would start the application (provided the required configurations are available). 'main' is probably going to be the ugliest package where all conventions and separation of concerns are broken, but this is acceptable. The responsibility of main package is one and only one, **get things started**.
 
-`cmd` directory can be added in the root for adding multiple commands. This is usually required *when there are multiple modes of interacting with the application*. i.e. HTTP server, CLI application etc. In which case each usecase can be initialized and started with subpackages under `cmd`. Even though Go advocates fewer use of packages, I would give higher precedence for separation of concerns at a package level to keep things tidy.
+`cmd` directory can be added in the root for adding multiple commands. This is usually required *when there are multiple modes of interacting with the application*. i.e. HTTP server, CLI etc. In which case each usecase can be initialized and started with subpackages under `cmd`. Even though Go advocates fewer use of packages, I would give higher precedence for separation of concerns at a package level to keep things tidy.
 
 ## Error handling
 
-After years of trying different approaches, I finally caved and a created custom [error handling package](https://github.com/bnkamalesh/errors) to make troubleshooting and responding to APIs easier, p.s: it's a drop-in replacement for Go builtin errors. More often than not, we log full details of errors and then respond to the API with a cleaner/friendly message. If you end-up using the [errors](https://github.com/bnkamalesh/errors) package, there's only one thing to follow. Any error returned by an external (external to the project) should be wrapped using the respective helper method. e.g. `errors.InternalErr(err, "<user friendly message>")` where err is the original error returned by the external package. If not using the custom error package, then you would have to annotate all the errors with relevant context info. e.g. `fmt.Errorf("<more info> %w", err)`. Though if you're annotating errors all the way, the user response has still to be handled separately. In which case, HTTP status code and the custom messages are better handled in the handlers layer.
+After years of trying different approaches, I finally caved and a created custom [error handling package](https://github.com/bnkamalesh/errors) to make troubleshooting and responding to APIs easier, p.s: it's a drop-in replacement for Go builtin errors. More often than not, we log full details of errors and then respond to the API with a cleaner/friendly message. If you end-up using the [errors](https://github.com/bnkamalesh/errors) package, there's only one thing to follow. Any error returned by an external (external to the project/repository) should be wrapped using the respective helper method. e.g. `errors.InternalErr(err, "<user friendly message>")` where err is the original error returned by the external package. If not using the custom error package, then you would have to annotate all the errors with relevant context info. e.g. `fmt.Errorf("<more info> %w", err)`. Though if you're annotating errors all the way, the user response has still to be handled separately. In which case, HTTP status code and the custom messages are better handled in the handlers layer.
 
 ## Dependency flow
 <p align="center">
 <img src="https://user-images.githubusercontent.com/1092882/104085767-f5999100-5277-11eb-808a-5fd9b6776ad6.png" alt="Dependency flow between the layers" width="768px"/>
 </p>
+
 ## Integrating with ELK APM
 
 I've been a fan of ELK APM when I first laid my eyes on it. The integration is super easy as well. In the sample app, you can check `internal/server/http.go:NewService` how APM is enabled. Once you have ELK APM setup, you need to provide the following configuration for it work.
@@ -269,6 +272,8 @@ $ export ELASTIC_APM_CAPTURE_HEADERS=false
 $ export ELASTIC_APM_METRICS_INTERVAL=60s
 ```
 
+Even though I still like ELK very much, it might be a smart move to start using [Open telemetry](https://opentelemetry.io/), ELK stack already supports it as well. Though, I haven't done any exhaustive research into what would you be missing out if you stuck to Open telemetry instead of ELK (or any similar providers') native SDKs. You can find [Go's Open telemetry libraries here](https://opentelemetry.io/docs/instrumentation/go/).
+
 # Note
 
 You can clone this repository and actually run the application, it'd start an HTTP server listening on port 8080 with the following routes available.
@@ -278,7 +283,7 @@ You can clone this repository and actually run the application, it'd start an HT
 - `/users` POST, to create new user
 - `/users/:emailID` GET, reads a user from the database given the email id. e.g. http://localhost:8080/users/john.doe@example.com
 
-I've used [webgo](https://github.com/bnkamalesh/webgo) to setup the HTTP server (I guess I'm biased ¯\\ (ツ) /¯ ).
+I've used [webgo](https://github.com/bnkamalesh/webgo) to setup the HTTP server (I guess I'm biased ¯\\ (ツ) /¯ ). Though there's no compulsion that you do the same, you can pick a framework of your choice! Though stick to the framework's structure if they have any recommendations. Otherwise, goapp is the way to *go*, yay!
 
 How to run?
 
@@ -297,7 +302,7 @@ If you'd like to see something added, or if you feel there's something missing h
 
 - [x] Add sample Postgres implementation (for persistent store)
 - [x] Add sample Redis implementation (for cache)
-- [x] Add APM implementation using [ELK stack](https://www.elastic.co/apm)
+- [x] Add APM implementation using [ELK stack](https://www.elastic.co/observability/application-performance-monitoring)
 - [x] Logging
 - [x] Testing
 - [x] Error handling

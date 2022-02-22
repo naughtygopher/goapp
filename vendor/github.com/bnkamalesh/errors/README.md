@@ -7,16 +7,19 @@
 [![](https://godoc.org/github.com/nathany/looper?status.svg)](https://pkg.go.dev/github.com/bnkamalesh/errors?tab=doc)
 [![](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#error-handling)
 
-# Errors
+# Errors v0.9.0
 
 Errors package is a drop-in replacement of the built-in Go errors package with no external dependencies. It lets you create errors of 11 different types which should handle most of the use cases. Some of them are a bit too specific for web applications, but useful nonetheless. Following are the primary features of this package:
 
 1. Multiple (11) error types
 2. User friendly message
-3. File & line number prefixed to errors
-4. HTTP status code and user friendly message (wrapped messages are concatenated) for all error types
-5. Helper functions to generate each error type
-6. Helper function to get error Type, error type as int, check if error type is wrapped anywhere in chain
+3. Stacktrace - formatted, unfromatted, custom format (refer tests in errors_test.go)
+4. Retrieve the Program Counters, for compatibility external libraries which generate their own stacktrace
+5. Retrieve *runtime.Frames using `errors.RuntimeFrames(err error)`, for compatibility external libraries which generate their own stacktrace
+6. HTTP status code and user friendly message (wrapped messages are concatenated) for all error types
+7. Helper functions to generate each error type
+8. Helper function to get error Type, error type as int, check if error type is wrapped anywhere in chain
+9. fmt.Formatter support
 
 In case of nested errors, the messages & errors are also looped through the full chain of errors.
 
@@ -50,43 +53,71 @@ There are helper functions for all the error types, when in need of setting a fr
 
 ```golang
 package main
-import(
-    "fmt"
-    "github.com/bnkamalesh/errors"
+
+import (
+	"fmt"
+
+	"github.com/bnkamalesh/errors"
 )
 
 func Bar() error {
-    return fmt.Errorf("hello %s", "world!")
+	return fmt.Errorf("hello %s", "world!")
 }
 
 func Foo() error {
-    err := Bar()
-    if err != nil {
-        return errors.InternalErr(err, "bar is not happy")
-    }
-    return nil
+	err := Bar()
+	if err != nil {
+		return errors.InternalErr(err, "bar is not happy")
+	}
+	return nil
 }
 
 func main() {
-    err := Foo()
-    fmt.Println(err)
-    _,msg,_ := errors.HTTPStatusCodeMessage(err)
-    fmt.Println(msg)
+	err := Foo()
+	
+	fmt.Println("err:", err)
+	fmt.Println("\nerr.Error():", err.Error())
+
+	fmt.Printf("\nformatted +v: %+v\n", err)
+	fmt.Printf("\nformatted v: %v\n", err)
+	fmt.Printf("\nformatted +s: %+s\n", err)
+	fmt.Printf("\nformatted s: %s\n", err)
+
+	_, msg, _ := errors.HTTPStatusCodeMessage(err)
+	fmt.Println("\nmsg:", msg)
 }
 ```
 
+Output 
+```
+err: bar is not happy
+
+err.Error(): /path/to/file.go:16: bar is not happy
+hello world!
+
+formatted +v: /path/to/file.go:16: bar is not happy
+hello world!
+
+formatted v: bar is not happy
+
+formatted +s: bar is not happy: hello world!
+
+formatted s: bar is not happy
+
+msg: bar is not happy
+```
+
+[Playground link](https://go.dev/play/p/-WzDH46f_U5)
+
 ### File & line number prefixed to errors
 
-A common annoyance with Go errors which most people are aware of is, figuring out the origin of the error, especially when there are nested function calls. Ever since error annotation was introduced in Go, a lot of people have tried using it to trace out an errors origin by giving function names, contextual message etc in it. e.g. `fmt.Errorf("database query returned error %w", err)`. This errors package, whenever you call the Go error interface's `Error() string` function, it'll print the error prefixed by the filepath and line number. It'd look like `../Users/JohnDoe/apps/main.go:50 hello world` where 'hello world' is the error message.
+A common annoyance with Go errors which most people are aware of is, figuring out the origin of the error, especially when there are nested function calls. Ever since error annotation was introduced in Go, a lot of people have tried using it to trace out an errors origin by giving function names, contextual message etc in it. e.g. `fmt.Errorf("database query returned error %w", err)`. However this errors package, whenever you call the Go error interface's `Error() string` function, prints the error prefixed by the filepath and line number. It'd look like `../Users/JohnDoe/apps/main.go:50 hello world` where 'hello world' is the error message.
 
 ### HTTP status code & message
 
-The function `errors.HTTPStatusCodeMessage(error) (int, string, bool)` returns the HTTP status code, message, and a boolean value. The boolean is true, if the error is of type *Error from this package. 
-If error is nested with multiple errors, it loops through all the levels and returns a single concatenated message. This is illustrated in the 'How to use?' section
+The function `errors.HTTPStatusCodeMessage(error) (int, string, bool)` returns the HTTP status code, message, and a boolean value. The boolean is true, if the error is of type *Error from this package. If error is nested, it unwraps and returns a single concatenated message. Sample described in the 'How to use?' section
 
 ## How to use?
-
-Before that, over the years I have tried error with stack trace, annotation, custom error package with error codes etc. Finally, I think this package gives the best of all worlds, for most generic usecases.
 
 A sample was already shown in the user friendly message section, following one would show a few more scenarios.
 
@@ -179,34 +210,33 @@ And the `fmt.Println(err.Error())` generated output on stdout would be:
 /Users/username/go/src/errorscheck/main.go:28 /Users/username/go/src/errorscheck/main.go:20 sinking bar
 ```
 
-## Benchmark
+## Benchmark [2021-12-13]
 
-Benchmark run on:
-<p><img width="320" alt="Screenshot 2020-07-18 at 6 25 22 PM" src="https://user-images.githubusercontent.com/1092882/87852981-241b5c80-c924-11ea-9d22-296acdead7cc.png"></p>
-
-Results
 ```bash
 $ go version
-go version go1.14.4 darwin/amd64
-$ go test -bench=.
-goos: darwin
+go version go1.17.4 linux/amd64
+
+$ go test -benchmem -bench .
+goos: linux
 goarch: amd64
 pkg: github.com/bnkamalesh/errors
-Benchmark_Internal-8                            	 1874256	       639 ns/op	     368 B/op	       5 allocs/op
-Benchmark_InternalErr-8                         	 1612707	       755 ns/op	     368 B/op	       5 allocs/op
-Benchmark_InternalGetError-8                    	 1700966	       706 ns/op	     464 B/op	       6 allocs/op
-Benchmark_InternalGetErrorWithNestedError-8     	 1458368	       823 ns/op	     464 B/op	       6 allocs/op
-Benchmark_InternalGetMessage-8                  	 1866562	       643 ns/op	     368 B/op	       5 allocs/op
-Benchmark_InternalGetMessageWithNestedError-8   	 1656597	       770 ns/op	     400 B/op	       6 allocs/op
-Benchmark_HTTPStatusCodeMessage-8               	26003678	        46.1 ns/op	      16 B/op	       1 allocs/op
-BenchmarkHasType-8                              	84689433	        14.2 ns/op	       0 B/op	       0 allocs/op
+cpu: Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz
+Benchmark_Internal-8                             772088       1412 ns/op    1272 B/op    5 allocs/op
+Benchmark_Internalf-8                            695674       1692 ns/op    1296 B/op    6 allocs/op
+Benchmark_InternalErr-8                          822500       1404 ns/op    1272 B/op    5 allocs/op
+Benchmark_InternalGetError-8                     881791       1319 ns/op    1368 B/op    6 allocs/op
+Benchmark_InternalGetErrorWithNestedError-8      712803       1488 ns/op    1384 B/op    6 allocs/op
+Benchmark_InternalGetMessage-8                   927864       1237 ns/op    1272 B/op    5 allocs/op
+Benchmark_InternalGetMessageWithNestedError-8    761164       1675 ns/op    1296 B/op    6 allocs/op
+Benchmark_HTTPStatusCodeMessage-8                29116684     41.62 ns/op   16 B/op      1 allocs/op
+BenchmarkHasType-8                               100000000    11.50 ns/op   0 B/op       0 allocs/op
 PASS
-ok  	github.com/bnkamalesh/errors	14.478s
+ok  	github.com/bnkamalesh/errors	10.604s
 ```
 
 ## Contributing
 
-More error types, customization etc; PRs & issues are welcome!
+More error types, customization, features etc; PRs & issues are welcome!
 
 ## The gopher
 

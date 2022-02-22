@@ -3,7 +3,7 @@ package api
 import (
 	"time"
 
-	"github.com/bnkamalesh/goapp/internal/platform/logger"
+	"github.com/bnkamalesh/goapp/internal/pkg/logger"
 	"github.com/bnkamalesh/goapp/internal/users"
 )
 

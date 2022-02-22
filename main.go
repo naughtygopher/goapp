@@ -3,9 +3,9 @@ package main
 import (
 	"github.com/bnkamalesh/goapp/internal/api"
 	"github.com/bnkamalesh/goapp/internal/configs"
-	"github.com/bnkamalesh/goapp/internal/platform/cachestore"
-	"github.com/bnkamalesh/goapp/internal/platform/datastore"
-	"github.com/bnkamalesh/goapp/internal/platform/logger"
+	"github.com/bnkamalesh/goapp/internal/pkg/cachestore"
+	"github.com/bnkamalesh/goapp/internal/pkg/datastore"
+	"github.com/bnkamalesh/goapp/internal/pkg/logger"
 	"github.com/bnkamalesh/goapp/internal/server/http"
 	"github.com/bnkamalesh/goapp/internal/users"
 )

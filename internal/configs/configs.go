@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bnkamalesh/goapp/internal/platform/cachestore"
-	"github.com/bnkamalesh/goapp/internal/platform/datastore"
+	"github.com/bnkamalesh/goapp/internal/pkg/cachestore"
+	"github.com/bnkamalesh/goapp/internal/pkg/datastore"
 	"github.com/bnkamalesh/goapp/internal/server/http"
 )
 

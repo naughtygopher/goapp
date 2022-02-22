@@ -9,8 +9,8 @@ import (
 	"github.com/gomodule/redigo/redis"
 	"github.com/jackc/pgx/v4/pgxpool"
 
-	"github.com/bnkamalesh/goapp/internal/platform/cachestore"
-	"github.com/bnkamalesh/goapp/internal/platform/logger"
+	"github.com/bnkamalesh/goapp/internal/pkg/cachestore"
+	"github.com/bnkamalesh/goapp/internal/pkg/logger"
 )
 
 // User holds all data required to represent a user

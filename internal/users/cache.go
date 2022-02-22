@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/bnkamalesh/errors"
 	"github.com/gomodule/redigo/redis"
 
-	"github.com/bnkamalesh/errors"
-	"github.com/bnkamalesh/goapp/internal/platform/cachestore"
+	"github.com/bnkamalesh/goapp/internal/pkg/cachestore"
 )
 
 type userCachestore interface {
