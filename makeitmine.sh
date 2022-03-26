@@ -18,7 +18,7 @@ a_flag=false
 print_usage() {
   printf """
 Usage:
-./makeityours.sh -n <module name> -a -e example.org/me/myapp
+./makeitmine.sh -n <module name> -a -e example.org/me/myapp
 
 Options
 =======
