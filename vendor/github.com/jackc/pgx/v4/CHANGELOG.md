@@ -1,3 +1,27 @@
+# 4.15.0 (February 7, 2022)
+
+* Upgrade to pgconn v1.11.0
+* Upgrade to pgtype v1.10.0
+* Upgrade puddle to v1.2.1
+* Make BatchResults.Close safe to be called multiple times
+
+# 4.14.1 (November 28, 2021)
+
+* Upgrade pgtype to v1.9.1 (fixes unintentional change to timestamp binary decoding)
+* Start pgxpool background health check after initial connections
+
+# 4.14.0 (November 20, 2021)
+
+* Upgrade pgconn to v1.10.1
+* Upgrade pgproto3 to v2.2.0
+* Upgrade pgtype to v1.9.0
+* Upgrade puddle to v1.2.0
+* Add QueryFunc to BatchResults
+* Add context options to zerologadapter (Thomas Frössman)
+* Add zerologadapter.NewContextLogger (urso)
+* Eager initialize minpoolsize on connect (Daniel)
+* Unpin memory used by large queries immediately after use
+
 # 4.13.0 (July 24, 2021)
 
 * Trimmed pseudo-dependencies in Go modules from other packages tests

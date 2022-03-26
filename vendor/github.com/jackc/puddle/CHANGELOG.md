@@ -1,3 +1,17 @@
+# 1.2.1 (December 2, 2021)
+
+* TryAcquire now does not block when background constructing resource
+
+# 1.2.0 (November 20, 2021)
+
+* Add TryAcquire (A. Jensen)
+* Fix: remove memory leak / unintentionally pinned memory when shrinking slices (Alexander Staubo)
+* Fix: Do not leave pool locked after panic from nil context
+
+# 1.1.4 (September 11, 2021)
+
+* Fix: Deadlock in CreateResource if pool was closed during resource acquisition (Dmitriy Matrenichev)
+
 # 1.1.3 (December 3, 2020)
 
 * Fix: Failed resource creation could cause concurrent Acquire to hang. (Evgeny Vanslov)

@@ -23,6 +23,8 @@ import (
 	"math/big"
 
 	"github.com/pkg/errors"
+
+	"go.elastic.co/apm/internal/apmmath"
 )
 
 // Sampler provides a means of sampling transactions.
@@ -126,5 +128,5 @@ func roundSampleRate(r float64) float64 {
 	if r > 0 && r < 0.0001 {
 		r = 0.0001
 	}
-	return round(r*10000) / 10000
+	return apmmath.Round(r*10000) / 10000
 }

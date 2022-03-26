@@ -272,7 +272,7 @@ $ export ELASTIC_APM_CAPTURE_HEADERS=false
 $ export ELASTIC_APM_METRICS_INTERVAL=60s
 ```
 
-Even though I still like ELK very much, it might be a smart move to start using [Open telemetry](https://opentelemetry.io/), ELK stack already supports it as well. Though, I haven't done any exhaustive research into what would you be missing out if you stuck to Open telemetry instead of ELK (or any similar providers') native SDKs. You can find [Go's Open telemetry libraries here](https://opentelemetry.io/docs/instrumentation/go/).
+Even though I still like ELK very much, it'd be a smart move to start using [Open telemetry](https://opentelemetry.io/), ELK stack already supports it as well. Though, I haven't done any exhaustive research into what would you be missing out if you stuck to Open telemetry instead of ELK (or any similar providers') native SDKs. You can find [Go's Open telemetry libraries here](https://opentelemetry.io/docs/instrumentation/go/).
 
 # Note
 
@@ -292,6 +292,17 @@ $ git clone https://github.com/bnkamalesh/goapp.git
 $ cd goapp
 # Update the internal/configs/configs.go with valid datastore configuration. Or pass 'nil' while calling user service. The app wouldn't start if no valid configuration is provided.
 $ TEMPLATES_BASEPATH=${PWD}/internal/server/http/web/templates go run main.go
+```
+## Make it your app
+
+If you found this useful and would like to use this for your own application. There's now `bash` script included.
+It uses basic tools expected to be available in most Linux & MacOS systems by default (sed, grep, getopts, printf, xargs). 
+It also runs some `go mod`, but at this point I think it's safe to assume you have Go installed on your machine!
+
+```bash
+$ git clone https://github.com/bnkamalesh/goapp.git
+$ cd goapp
+$ ./makeitmine -n example.com/orgname/myapp
 ```
 
 ## Something missing?

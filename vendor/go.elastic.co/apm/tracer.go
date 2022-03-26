@@ -117,6 +117,8 @@ type TracerOptions struct {
 	cpuProfileInterval    time.Duration
 	cpuProfileDuration    time.Duration
 	heapProfileInterval   time.Duration
+	exitSpanMinDuration   time.Duration
+	compressionOptions    compressionOptions
 }
 
 // initDefaults updates opts with default values.
@@ -162,6 +164,21 @@ func (opts *TracerOptions) initDefaults(continueOnError bool) error {
 	maxSpans, err := initialMaxSpans()
 	if failed(err) {
 		maxSpans = defaultMaxSpans
+	}
+
+	spanCompressionEnabled, err := initialSpanCompressionEnabled()
+	if failed(err) {
+		spanCompressionEnabled = defaultSpanCompressionEnabled
+	}
+
+	spanCompressionExactMatchMaxDuration, err := initialSpanCompressionExactMatchMaxDuration()
+	if failed(err) {
+		spanCompressionExactMatchMaxDuration = defaultSpanCompressionExactMatchMaxDuration
+	}
+
+	spanCompressionSameKindMaxDuration, err := initialSpanCompressionSameKindMaxDuration()
+	if failed(err) {
+		spanCompressionSameKindMaxDuration = defaultSpanCompressionSameKindMaxDuration
 	}
 
 	sampler, err := initialSampler()
@@ -224,6 +241,11 @@ func (opts *TracerOptions) initDefaults(continueOnError bool) error {
 		heapProfileInterval = 0
 	}
 
+	exitSpanMinDuration, err := initialExitSpanMinDuration()
+	if failed(err) {
+		exitSpanMinDuration = defaultExitSpanMinDuration
+	}
+
 	if opts.ServiceName != "" {
 		err := validateServiceName(opts.ServiceName)
 		if failed(err) {
@@ -244,6 +266,11 @@ func (opts *TracerOptions) initDefaults(continueOnError bool) error {
 	opts.bufferSize = bufferSize
 	opts.metricsBufferSize = metricsBufferSize
 	opts.maxSpans = maxSpans
+	opts.compressionOptions = compressionOptions{
+		enabled:               spanCompressionEnabled,
+		exactMatchMaxDuration: spanCompressionExactMatchMaxDuration,
+		sameKindMaxDuration:   spanCompressionSameKindMaxDuration,
+	}
 	opts.sampler = sampler
 	opts.sanitizedFieldNames = initialSanitizedFieldNames()
 	opts.disabledMetrics = initialDisabledMetrics()
@@ -256,6 +283,7 @@ func (opts *TracerOptions) initDefaults(continueOnError bool) error {
 	opts.active = active
 	opts.recording = recording
 	opts.propagateLegacyHeader = propagateLegacyHeader
+	opts.exitSpanMinDuration = exitSpanMinDuration
 	if opts.Transport == nil {
 		opts.Transport = transport.Default
 	}
@@ -282,6 +310,12 @@ func (opts *TracerOptions) initDefaults(continueOnError bool) error {
 		opts.ServiceEnvironment = serviceEnvironment
 	}
 	return nil
+}
+
+type compressionOptions struct {
+	enabled               bool
+	exactMatchMaxDuration time.Duration
+	sameKindMaxDuration   time.Duration
 }
 
 // Tracer manages the sampling and sending of transactions to
@@ -327,8 +361,8 @@ type Tracer struct {
 	breakdownMetrics  *breakdownMetrics
 	profileSender     profileSender
 
-	statsMu sync.Mutex
-	stats   TracerStats
+	// stats is heap-allocated to ensure correct alignment for atomic access.
+	stats *TracerStats
 
 	// instrumentationConfig_ must only be accessed and mutated
 	// using Tracer.instrumentationConfig() and Tracer.setInstrumentationConfig().
@@ -387,6 +421,7 @@ func newTracer(opts TracerOptions) *Tracer {
 		events:            make(chan tracerEvent, tracerEventChannelCap),
 		active:            1,
 		breakdownMetrics:  newBreakdownMetrics(),
+		stats:             &TracerStats{},
 		bufferSize:        opts.bufferSize,
 		metricsBufferSize: opts.metricsBufferSize,
 		profileSender:     opts.profileSender,
@@ -412,6 +447,15 @@ func newTracer(opts TracerOptions) *Tracer {
 	t.setLocalInstrumentationConfig(envMaxSpans, func(cfg *instrumentationConfigValues) {
 		cfg.maxSpans = opts.maxSpans
 	})
+	t.setLocalInstrumentationConfig(envSpanCompressionEnabled, func(cfg *instrumentationConfigValues) {
+		cfg.compressionOptions.enabled = opts.compressionOptions.enabled
+	})
+	t.setLocalInstrumentationConfig(envSpanCompressionExactMatchMaxDuration, func(cfg *instrumentationConfigValues) {
+		cfg.compressionOptions.exactMatchMaxDuration = opts.compressionOptions.exactMatchMaxDuration
+	})
+	t.setLocalInstrumentationConfig(envSpanCompressionSameKindMaxDuration, func(cfg *instrumentationConfigValues) {
+		cfg.compressionOptions.sameKindMaxDuration = opts.compressionOptions.sameKindMaxDuration
+	})
 	t.setLocalInstrumentationConfig(envTransactionSampleRate, func(cfg *instrumentationConfigValues) {
 		cfg.sampler = opts.sampler
 		cfg.extendedSampler, _ = opts.sampler.(ExtendedSampler)
@@ -430,6 +474,9 @@ func newTracer(opts TracerOptions) *Tracer {
 	})
 	t.setLocalInstrumentationConfig(envIgnoreURLs, func(cfg *instrumentationConfigValues) {
 		cfg.ignoreTransactionURLs = opts.ignoreTransactionURLs
+	})
+	t.setLocalInstrumentationConfig(envExitSpanMinDuration, func(cfg *instrumentationConfigValues) {
+		cfg.exitSpanMinDuration = opts.exitSpanMinDuration
 	})
 	if apmlog.DefaultLogger != nil {
 		defaultLogLevel := apmlog.DefaultLogger.Level()
@@ -707,6 +754,29 @@ func (t *Tracer) SetMaxSpans(n int) {
 	})
 }
 
+// SetSpanCompressionEnabled enables/disables the span compression feature.
+func (t *Tracer) SetSpanCompressionEnabled(v bool) {
+	t.setLocalInstrumentationConfig(envSpanCompressionEnabled, func(cfg *instrumentationConfigValues) {
+		cfg.compressionOptions.enabled = v
+	})
+}
+
+// SetSpanCompressionExactMatchMaxDuration sets the maximum duration for a span
+// to be compressed with `compression_strategy` == `exact_match`.
+func (t *Tracer) SetSpanCompressionExactMatchMaxDuration(v time.Duration) {
+	t.setLocalInstrumentationConfig(envSpanCompressionExactMatchMaxDuration, func(cfg *instrumentationConfigValues) {
+		cfg.compressionOptions.exactMatchMaxDuration = v
+	})
+}
+
+// SetSpanCompressionSameKindMaxDuration sets the maximum duration for a span
+// to be compressed with `compression_strategy` == `same_kind`.
+func (t *Tracer) SetSpanCompressionSameKindMaxDuration(v time.Duration) {
+	t.setLocalInstrumentationConfig(envSpanCompressionSameKindMaxDuration, func(cfg *instrumentationConfigValues) {
+		cfg.compressionOptions.sameKindMaxDuration = v
+	})
+}
+
 // SetSpanFramesMinDuration sets the minimum duration for a span after which
 // we will capture its stack frames.
 func (t *Tracer) SetSpanFramesMinDuration(d time.Duration) {
@@ -737,6 +807,14 @@ func (t *Tracer) SetCaptureBody(mode CaptureBodyMode) {
 	})
 }
 
+// SetExitSpanMinDuration sets the minimum duration for an exit span to not be
+// dropped.
+func (t *Tracer) SetExitSpanMinDuration(v time.Duration) {
+	t.setLocalInstrumentationConfig(envExitSpanMinDuration, func(cfg *instrumentationConfigValues) {
+		cfg.exitSpanMinDuration = v
+	})
+}
+
 // SendMetrics forces the tracer to gather and send metrics immediately,
 // blocking until the metrics have been sent or the abort channel is
 // signalled.
@@ -756,10 +834,7 @@ func (t *Tracer) SendMetrics(abort <-chan struct{}) {
 // Stats returns the current TracerStats. This will return the most
 // recent values even after the tracer has been closed.
 func (t *Tracer) Stats() TracerStats {
-	t.statsMu.Lock()
-	stats := t.stats
-	t.statsMu.Unlock()
-	return stats
+	return t.stats.copy()
 }
 
 func (t *Tracer) loop() {
@@ -1054,9 +1129,7 @@ func (t *Tracer) loop() {
 				}
 			}
 			if !stats.isZero() {
-				t.statsMu.Lock()
 				t.stats.accumulate(stats)
-				t.statsMu.Unlock()
 				stats = TracerStats{}
 			}
 			if sentMetrics != nil && requestBufMetricsets > 0 {
@@ -1091,9 +1164,7 @@ func (t *Tracer) loop() {
 		}
 
 		if !stats.isZero() {
-			t.statsMu.Lock()
 			t.stats.accumulate(stats)
-			t.statsMu.Unlock()
 			stats = TracerStats{}
 		}
 

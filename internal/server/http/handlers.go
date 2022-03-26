@@ -8,8 +8,9 @@ import (
 	"runtime/debug"
 
 	"github.com/bnkamalesh/errors"
-	"github.com/bnkamalesh/goapp/internal/api"
 	"github.com/bnkamalesh/webgo/v6"
+
+	"github.com/bnkamalesh/goapp/internal/api"
 )
 
 // Handlers struct has all the dependencies required for HTTP handlers

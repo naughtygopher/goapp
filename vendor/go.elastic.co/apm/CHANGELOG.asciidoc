@@ -21,10 +21,22 @@ endif::[]
 [[unreleased]]
 === Unreleased
 
-https://github.com/elastic/apm-agent-go/compare/v1.14.0...master[View commits]
+https://github.com/elastic/apm-agent-go/compare/v1.15.0...master[View commits]
 
 [[release-notes-1.x]]
 === Go Agent version 1.x
+
+[[release-notes-1.15.0]]
+==== 1.15.0 - 2021/12/08
+
+- Deprecate `http.request.socket.encrypted` and stop recording it in `module/apmhttp`, `module/apmgrpc` and `module/apmfiber`. {pull}1129[#(1129)]
+- Collect and send span destination service timing statistics about the dropped spans to the apm-server. {pull}1132[#(1132)]
+- Experimental support to compress short exit spans into a composite span. Disabled by default. {pull}1134[#(1134)]
+- Discard exit spans shorter or equal than `ELASTIC_APM_EXIT_SPAN_MIN_DURATION`. Defaults to `1ms`. {pull}1138[#(1138)]
+- module/apmprometheus: add support for mapping prometheus histograms. {pull}1145[#(1145)]
+- Fixed a bug where errors in cloud metadata discovery could lead to the process aborting during initialisation {pull}1158[#(1158)]
+- Fixed a data race related to HTTP request header sanitisation {pull}1159[#(1159)]
+- `apm.CaptureError`, `apm.Error.SetTransaction`, and `apm.Error.SetSpan` will now set the associated transaction or span's default outcome to "failure" {pull}1160[#(1160)]
 
 [[release-notes-1.14.0]]
 ==== 1.14.0 - 2021/09/22

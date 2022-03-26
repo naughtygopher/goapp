@@ -1,3 +1,17 @@
+# 1.11.0 (February 7, 2022)
+
+* Support port in ip from LookupFunc to override config (James Hartig)
+* Fix TLS connection timeout (Blake Embrey)
+* Add support for read-only, primary, standby, prefer-standby target_session_attributes (Oscar)
+* Fix connect when receiving NoticeResponse
+
+# 1.10.1 (November 20, 2021)
+
+* Close without waiting for response (Kei Kamikawa)
+* Save waiting for network round-trip in CopyFrom (Rueian)
+* Fix concurrency issue with ContextWatcher
+* LRU.Get always checks context for cancellation / expiration (Georges Varouchas)
+
 # 1.10.0 (July 24, 2021)
 
 * net.Timeout errors are no longer returned when a query is canceled via context. A wrapped context error is returned.

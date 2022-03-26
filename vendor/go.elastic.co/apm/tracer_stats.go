@@ -17,6 +17,8 @@
 
 package apm // import "go.elastic.co/apm"
 
+import "sync/atomic"
+
 // TracerStats holds statistics for a Tracer.
 type TracerStats struct {
 	Errors              TracerStatsErrors
@@ -41,12 +43,28 @@ func (s TracerStats) isZero() bool {
 // accumulate updates the stats by accumulating them with
 // the values in rhs.
 func (s *TracerStats) accumulate(rhs TracerStats) {
-	s.Errors.SetContext += rhs.Errors.SetContext
-	s.Errors.SendStream += rhs.Errors.SendStream
-	s.ErrorsSent += rhs.ErrorsSent
-	s.ErrorsDropped += rhs.ErrorsDropped
-	s.SpansSent += rhs.SpansSent
-	s.SpansDropped += rhs.SpansDropped
-	s.TransactionsSent += rhs.TransactionsSent
-	s.TransactionsDropped += rhs.TransactionsDropped
+	atomic.AddUint64(&s.Errors.SetContext, rhs.Errors.SetContext)
+	atomic.AddUint64(&s.Errors.SendStream, rhs.Errors.SendStream)
+	atomic.AddUint64(&s.ErrorsSent, rhs.ErrorsSent)
+	atomic.AddUint64(&s.ErrorsDropped, rhs.ErrorsDropped)
+	atomic.AddUint64(&s.SpansSent, rhs.SpansSent)
+	atomic.AddUint64(&s.SpansDropped, rhs.SpansDropped)
+	atomic.AddUint64(&s.TransactionsSent, rhs.TransactionsSent)
+	atomic.AddUint64(&s.TransactionsDropped, rhs.TransactionsDropped)
+}
+
+// copy returns a copy of the most recent tracer stats.
+func (s *TracerStats) copy() TracerStats {
+	return TracerStats{
+		Errors: TracerStatsErrors{
+			SetContext: atomic.LoadUint64(&s.Errors.SetContext),
+			SendStream: atomic.LoadUint64(&s.Errors.SendStream),
+		},
+		ErrorsSent:          atomic.LoadUint64(&s.ErrorsSent),
+		ErrorsDropped:       atomic.LoadUint64(&s.ErrorsDropped),
+		TransactionsSent:    atomic.LoadUint64(&s.TransactionsSent),
+		TransactionsDropped: atomic.LoadUint64(&s.TransactionsDropped),
+		SpansSent:           atomic.LoadUint64(&s.SpansSent),
+		SpansDropped:        atomic.LoadUint64(&s.SpansDropped),
+	}
 }

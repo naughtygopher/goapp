@@ -247,6 +247,9 @@ func (e *Error) Error() string {
 //
 // If any custom context has been recorded in tx, it will also be carried across
 // to e, but will not override any custom context already recorded on e.
+//
+// SetTransaction also has the effect of setting tx's default outcome to "failure",
+// unless it is explicitly specified by the instrumentation.
 func (e *Error) SetTransaction(tx *Transaction) {
 	tx.mu.RLock()
 	traceContext := tx.traceContext
@@ -255,6 +258,9 @@ func (e *Error) SetTransaction(tx *Transaction) {
 	if !tx.ended() {
 		txType = tx.Type
 		custom = tx.Context.model.Custom
+		tx.TransactionData.mu.Lock()
+		tx.TransactionData.errorCaptured = true
+		tx.TransactionData.mu.Unlock()
 	}
 	tx.mu.RUnlock()
 	e.setSpanData(traceContext, traceContext.Span, txType, custom)
@@ -277,8 +283,19 @@ func (e *Error) SetSpan(s *Span) {
 		if !s.tx.ended() {
 			txType = s.tx.Type
 			custom = s.tx.Context.model.Custom
+			s.tx.TransactionData.mu.Lock()
+			s.tx.TransactionData.errorCaptured = true
+			s.tx.TransactionData.mu.Unlock()
 		}
 		s.tx.mu.RUnlock()
+
+		s.mu.RLock()
+		if !s.ended() {
+			s.SpanData.mu.Lock()
+			s.SpanData.errorCaptured = true
+			s.SpanData.mu.Unlock()
+		}
+		s.mu.RUnlock()
 	}
 	e.setSpanData(s.traceContext, s.transactionID, txType, custom)
 }
@@ -333,9 +350,7 @@ func (e *ErrorData) enqueue() {
 	case e.tracer.events <- tracerEvent{eventType: errorEvent, err: e}:
 	default:
 		// Enqueuing an error should never block.
-		e.tracer.statsMu.Lock()
-		e.tracer.stats.ErrorsDropped++
-		e.tracer.statsMu.Unlock()
+		e.tracer.stats.accumulate(TracerStats{ErrorsDropped: 1})
 		e.reset()
 	}
 }

@@ -24,6 +24,8 @@ import (
 
 const redacted = "[REDACTED]"
 
+var redactedValues = []string{redacted}
+
 // sanitizeRequest sanitizes HTTP request data, redacting the
 // values of cookies, headers and forms whose corresponding keys
 // match any of the given wildcard patterns.
@@ -36,13 +38,11 @@ func sanitizeRequest(r *model.Request, matchers wildcard.Matchers) {
 	}
 	sanitizeHeaders(r.Headers, matchers)
 	if r.Body != nil && r.Body.Form != nil {
-		for key, values := range r.Body.Form {
+		for key := range r.Body.Form {
 			if !matchers.MatchAny(key) {
 				continue
 			}
-			for i := range values {
-				values[i] = redacted
-			}
+			r.Body.Form[key] = redactedValues
 		}
 	}
 }
@@ -60,7 +60,10 @@ func sanitizeHeaders(headers model.Headers, matchers wildcard.Matchers) {
 		if !matchers.MatchAny(h.Key) || len(h.Values) == 0 {
 			continue
 		}
-		h.Values = h.Values[:1]
-		h.Values[0] = redacted
+		// h.Values may hold the original value slice from a
+		// net/http.Request, so it's important that we do not
+		// modify it. Instead, just replace the values with a
+		// shared, immutable slice.
+		h.Values = redactedValues
 	}
 }

@@ -269,6 +269,10 @@ type Transaction struct {
 	// SpanCount holds statistics on spans within a transaction.
 	SpanCount SpanCount `json:"span_count"`
 
+	// DroppedSpansStats holds information about spans that were dropped
+	// (for example due to transaction_max_spans or exit_span_min_duration).
+	DroppedSpansStats []DroppedSpansStats `json:"dropped_spans_stats,omitempty"`
+
 	// Outcome holds the transaction outcome: success, failure, or unknown.
 	Outcome string `json:"outcome,omitempty"`
 }
@@ -282,6 +286,34 @@ type SpanCount struct {
 
 	// Started holds the number of spans started within a transaction.
 	Started int `json:"started"`
+}
+
+// DroppedSpansStats holds information about spans that were dropped
+// (for example due to transaction_max_spans or exit_span_min_duration).
+type DroppedSpansStats struct {
+	// DestinationServiceResource identifies the destination service resource
+	// being operated on. e.g. 'http://elastic.co:80', 'elasticsearch', 'rabbitmq/queue_name'.
+	DestinationServiceResource string `json:"destination_service_resource"`
+	// Outcome of the span: success, failure, or unknown. Outcome may be one of
+	// a limited set of permitted values describing the success or failure of
+	// the span. It can be used for calculating error rates for outgoing requests.
+	Outcome string `json:"outcome"`
+	// Duration holds duration aggregations about the dropped span.
+	Duration AggregateDuration `json:"duration"`
+}
+
+// AggregateDuration duration
+type AggregateDuration struct {
+	// Count holds the number of times the dropped span happened.
+	Count int `json:"count"`
+	// Sum holds dimensions about the dropped span's duration.
+	Sum DurationSum `json:"sum"`
+}
+
+// DurationSum contains units for duration
+type DurationSum struct {
+	// Sum of the duration of a span in Microseconds.
+	Us int64 `json:"us"`
 }
 
 // Span represents a span within a transaction.
@@ -330,6 +362,10 @@ type Span struct {
 
 	// Outcome holds the span outcome: success, failure, or unknown.
 	Outcome string `json:"outcome,omitempty"`
+
+	// Composite is set when the span is a composite span and represents an
+	// aggregated set of spans as defined by `composite.compression_strategy`.
+	Composite *CompositeSpan `json:"composite,omitempty"`
 }
 
 // SpanContext holds contextual information relating to the span.
@@ -430,6 +466,19 @@ type HTTPSpanContext struct {
 
 	// StatusCode holds the HTTP response status code.
 	StatusCode int `json:"status_code,omitempty"`
+}
+
+// CompositeSpan holds details on a group of spans represented by a single one.
+type CompositeSpan struct {
+	// Count is the number of compressed spans the composite span represents.
+	// The minimum count is 2, as a composite span represents at least two spans.
+	Count int `json:"count"`
+	// Sum is the durations of all compressed spans this composite span
+	// represents in milliseconds.
+	Sum float64 `json:"sum"`
+	// A string value indicating which compression strategy was used. The valid
+	// values are `exact_match` and `same_kind`.
+	CompressionStrategy string `json:"compression_strategy"`
 }
 
 // Context holds contextual information relating to a transaction or error.
@@ -666,7 +715,7 @@ type Header struct {
 // RequestSocket holds transport-level information relating to an HTTP request.
 type RequestSocket struct {
 	// Encrypted indicates whether or not the request was sent
-	// as an SSL/HTTPS request.
+	// as an SSL/HTTPS request. Deprecated.
 	Encrypted bool `json:"encrypted,omitempty"`
 
 	// RemoteAddress holds the remote address for the request.
@@ -765,6 +814,11 @@ type MetricsSpan struct {
 
 // Metric holds metric values.
 type Metric struct {
+	Type string `json:"type,omitempty"`
 	// Value holds the metric value.
 	Value float64 `json:"value"`
+	// Buckets holds the metric bucket values.
+	Values []float64 `json:"values,omitempty"`
+	// Count holds the metric observation count for the bucket.
+	Counts []uint64 `json:"counts,omitempty"`
 }

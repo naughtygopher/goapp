@@ -18,6 +18,10 @@ const (
 // or a pool that is closed while the acquire is waiting.
 var ErrClosedPool = errors.New("closed pool")
 
+// ErrNotAvailable occurs on an attempt to acquire a resource from a pool
+// that is at maximum capacity and has no available resources.
+var ErrNotAvailable = errors.New("resource not available")
+
 // Constructor is a function called by the pool to construct a resource.
 type Constructor func(ctx context.Context) (res interface{}, err error)
 
@@ -259,16 +263,18 @@ func (p *Pool) Stat() *Stat {
 // to cancel the Acquire.
 func (p *Pool) Acquire(ctx context.Context) (*Resource, error) {
 	startNano := nanotime()
-	p.cond.L.Lock()
 	if doneChan := ctx.Done(); doneChan != nil {
 		select {
 		case <-ctx.Done():
+			p.cond.L.Lock()
 			p.canceledAcquireCount += 1
 			p.cond.L.Unlock()
 			return nil, ctx.Err()
 		default:
 		}
 	}
+
+	p.cond.L.Lock()
 
 	emptyAcquire := false
 
@@ -281,6 +287,7 @@ func (p *Pool) Acquire(ctx context.Context) (*Resource, error) {
 		// If a resource is available now
 		if len(p.idleResources) > 0 {
 			res := p.idleResources[len(p.idleResources)-1]
+			p.idleResources[len(p.idleResources)-1] = nil // Avoid memory leak
 			p.idleResources = p.idleResources[:len(p.idleResources)-1]
 			res.status = resourceStatusAcquired
 			if emptyAcquire {
@@ -359,6 +366,53 @@ func (p *Pool) Acquire(ctx context.Context) (*Resource, error) {
 	}
 }
 
+// TryAcquire gets a resource from the pool if one is immediately available. If not, it returns ErrNotAvailable. If no
+// resources are available but the pool has room to grow, a resource will be created in the background. ctx is only
+// used to cancel the background creation.
+func (p *Pool) TryAcquire(ctx context.Context) (*Resource, error) {
+	p.cond.L.Lock()
+	defer p.cond.L.Unlock()
+
+	if p.closed {
+		return nil, ErrClosedPool
+	}
+
+	// If a resource is available now
+	if len(p.idleResources) > 0 {
+		res := p.idleResources[len(p.idleResources)-1]
+		p.idleResources[len(p.idleResources)-1] = nil // Avoid memory leak
+		p.idleResources = p.idleResources[:len(p.idleResources)-1]
+		p.acquireCount += 1
+		res.status = resourceStatusAcquired
+		return res, nil
+	}
+
+	if len(p.allResources) < int(p.maxSize) {
+		res := &Resource{pool: p, creationTime: time.Now(), lastUsedNano: nanotime(), status: resourceStatusConstructing}
+		p.allResources = append(p.allResources, res)
+		p.destructWG.Add(1)
+
+		go func() {
+			value, err := p.constructResourceValue(ctx)
+			defer p.cond.Signal()
+			p.cond.L.Lock()
+			defer p.cond.L.Unlock()
+
+			if err != nil {
+				p.allResources = removeResource(p.allResources, res)
+				p.destructWG.Done()
+				return
+			}
+
+			res.value = value
+			res.status = resourceStatusIdle
+			p.idleResources = append(p.idleResources, res)
+		}()
+	}
+
+	return nil, ErrNotAvailable
+}
+
 // AcquireAllIdle atomically acquires all currently idle resources. Its intended
 // use is for health check and keep-alive functionality. It does not update pool
 // statistics.
@@ -372,9 +426,8 @@ func (p *Pool) AcquireAllIdle() []*Resource {
 	for _, res := range p.idleResources {
 		res.status = resourceStatusAcquired
 	}
-	resources := make([]*Resource, len(p.idleResources))
-	copy(resources, p.idleResources)
-	p.idleResources = p.idleResources[0:0]
+	resources := p.idleResources // Swap out current slice
+	p.idleResources = nil
 
 	p.cond.L.Unlock()
 	return resources
@@ -409,6 +462,7 @@ func (p *Pool) CreateResource(ctx context.Context) error {
 	// If closed while constructing resource then destroy it and return an error
 	if p.closed {
 		go p.destructResourceValue(res.value)
+		p.cond.L.Unlock()
 		return ErrClosedPool
 	}
 	p.allResources = append(p.allResources, res)
@@ -460,6 +514,7 @@ func removeResource(slice []*Resource, res *Resource) []*Resource {
 	for i := range slice {
 		if slice[i] == res {
 			slice[i] = slice[len(slice)-1]
+			slice[len(slice)-1] = nil // Avoid memory leak
 			return slice[:len(slice)-1]
 		}
 	}

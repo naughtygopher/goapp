@@ -197,7 +197,6 @@ func (c *Context) SetHTTPRequest(req *http.Request) {
 	}
 
 	c.requestSocket = model.RequestSocket{
-		Encrypted:     req.TLS != nil,
 		RemoteAddress: apmhttputil.RemoteAddr(req),
 	}
 	if c.requestSocket != (model.RequestSocket{}) {

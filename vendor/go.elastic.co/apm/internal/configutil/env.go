@@ -31,11 +31,20 @@ import (
 // and, if set, parses it as a duration. If the environment variable
 // is unset, defaultDuration is returned.
 func ParseDurationEnv(envKey string, defaultDuration time.Duration) (time.Duration, error) {
+	return ParseDurationEnvOptions(envKey, defaultDuration, DurationOptions{
+		MinimumDurationUnit: time.Millisecond,
+	})
+}
+
+// ParseDurationEnvOptions gets the value of the environment variable envKey
+// and, if set, parses it as a duration. If the environment variable is unset,
+// defaultDuration is returned.
+func ParseDurationEnvOptions(envKey string, defaultDuration time.Duration, opts DurationOptions) (time.Duration, error) {
 	value := os.Getenv(envKey)
 	if value == "" {
 		return defaultDuration, nil
 	}
-	d, err := ParseDuration(value)
+	d, err := ParseDurationOptions(value, opts)
 	if err != nil {
 		return 0, errors.Wrapf(err, "failed to parse %s", envKey)
 	}

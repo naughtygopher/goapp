@@ -79,6 +79,13 @@ func (m *Metrics) Add(name string, labels []MetricLabel, value float64) {
 	m.addMetric(name, labels, model.Metric{Value: value})
 }
 
+// AddHistogram adds a histogram metric with the given name, labels, counts,
+// and values. The labels are expected to be sorted lexicographically, and
+// bucket values provided in ascending order.
+func (m *Metrics) AddHistogram(name string, labels []MetricLabel, values []float64, counts []uint64) {
+	m.addMetric(name, labels, model.Metric{Values: values, Counts: counts, Type: "histogram"})
+}
+
 func (m *Metrics) addMetric(name string, labels []MetricLabel, metric model.Metric) {
 	if m.disabled.MatchAny(name) {
 		return

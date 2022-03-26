@@ -7,7 +7,7 @@
 [![](https://godoc.org/github.com/nathany/looper?status.svg)](http://godoc.org/github.com/bnkamalesh/webgo)
 [![](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#web-frameworks)
 
-# WebGo v6.2.1
+# WebGo v6.6.2
 
 WebGo is a minimalistic framework for [Go](https://golang.org) to build web applications (server side) with no 3rd party dependencies. WebGo will always be Go standard library compliant; with the HTTP handlers having the same signature as [http.HandlerFunc](https://golang.org/pkg/net/http/#HandlerFunc).
 
@@ -21,7 +21,8 @@ WebGo is a minimalistic framework for [Go](https://golang.org) to build web appl
 6. [HTTPS ready](https://github.com/bnkamalesh/webgo#https-ready)
 7. [Graceful shutdown](https://github.com/bnkamalesh/webgo#graceful-shutdown)
 8. [Logging](https://github.com/bnkamalesh/webgo#logging)
-9. [Usage](https://github.com/bnkamalesh/webgo#usage)
+9. [Server-Sent Events](https://github.com/bnkamalesh/webgo#server-sent-events)
+10. [Usage](https://github.com/bnkamalesh/webgo#usage)
 
 
 ## Router
@@ -198,6 +199,9 @@ WebGo exposes a singleton & global scoped logger variable [LOGHANDLER](https://g
 
 The default logger uses Go standard library's `log.Logger` with `os.Stdout` (for debug and info logs) & `os.Stderr` (for warning, error, fatal) as default io.Writers. You can set the io.Writer as well as disable specific types of logs using the `GlobalLoggerConfig(stdout, stderr, cfgs...)` function.
 
+## Server-Sent Events
+
+[MDN has a very good documentation of what SSE (Server-Sent Events)](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events) are. The sample app provided shows how to use the SSE extension of webgo.
 ## Usage
 
 A fully functional sample is provided [here](https://github.com/bnkamalesh/webgo/blob/master/cmd/main.go).

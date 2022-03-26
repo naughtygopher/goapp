@@ -23,7 +23,6 @@ package apm // import "go.elastic.co/apm"
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -81,9 +80,6 @@ func Fuzz(data []byte) int {
 			capturedBody := tracer.CaptureHTTPRequestBody(req)
 			if in.Request.Socket != nil {
 				req.RemoteAddr = in.Request.Socket.RemoteAddress
-				if in.Request.Socket.Encrypted {
-					req.TLS = new(tls.ConnectionState)
-				}
 			}
 			req.PostForm = postForm
 			if in.User != nil && in.User.Username != "" {
