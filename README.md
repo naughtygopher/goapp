@@ -295,9 +295,9 @@ $ TEMPLATES_BASEPATH=${PWD}/internal/server/http/web/templates go run main.go
 ```
 ## Make it your app
 
-If you found this useful and would like to use this for your own application. There's now `bash` script included.
+If you found this useful and would like to use this for your own application. There's now a `bash` script included.
 It uses basic tools expected to be available in most Linux & MacOS systems by default (sed, grep, getopts, printf, xargs). 
-It also runs some `go mod`, but at this point I think it's safe to assume you have Go installed on your machine!
+It also runs some `go mod` commands, but at this point I think it's safe to assume you have Go installed on your machine!
 
 ```bash
 $ git clone https://github.com/bnkamalesh/goapp.git
