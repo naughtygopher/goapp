@@ -116,8 +116,10 @@ func panicRecoverer(w http.ResponseWriter, r *http.Request, next http.HandlerFun
 		if p == nil {
 			return
 		}
-		fmt.Println(string(debug.Stack()))
 		webgo.R500(w, errors.DefaultMessage)
+
+		_ = logger.Error(fmt.Sprintf("%+v", p))
+		fmt.Println(string(debug.Stack()))
 	}()
 
 	next(w, r)
