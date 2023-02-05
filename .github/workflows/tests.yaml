@@ -9,27 +9,29 @@ on:
       - master
 jobs:
   testold:
-    name: "Test with Go 1.16"
+    name: "Test with Go 1.19"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up Go 1.16
+      - name: Set up Go 1.19
         uses: actions/setup-go@v3
         with:
-          go-version: 1.16
+          go-version: 1.19
 
       - name: Test
         run: go test -coverprofile=coverage.txt -covermode=atomic $(go list ./... | grep -v /cmd)
 
   testlatest:
-    name: "Test with default latest Go"
+    name: "Test with latest Go"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
       - name: Set up Go latest
         uses: actions/setup-go@v3
+        with:
+          go-version: 1.20
 
       - name: Test
         run: go test -coverprofile=coverage.txt -covermode=atomic $(go list ./... | grep -v /cmd)
