@@ -15,22 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// +build amd64,cgo arm64,cgo
+//go:build amd64 || arm64
+// +build amd64 arm64
 
 package darwin
 
 import (
-	"syscall"
+	"fmt"
 
-	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 )
 
 const hardwareMIB = "hw.machine"
 
 func Architecture() (string, error) {
-	arch, err := syscall.Sysctl(hardwareMIB)
+	arch, err := unix.Sysctl(hardwareMIB)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to get architecture")
+		return "", fmt.Errorf("failed to get architecture: %w", err)
 	}
 
 	return arch, nil

@@ -18,6 +18,8 @@
 package windows
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,7 +27,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/pkg/errors"
 	syswin "golang.org/x/sys/windows"
 
 	windows "github.com/elastic/go-windows"
@@ -41,7 +42,7 @@ var (
 func (s windowsSystem) Processes() (procs []types.Process, err error) {
 	pids, err := windows.EnumProcesses()
 	if err != nil {
-		return nil, errors.Wrap(err, "EnumProcesses")
+		return nil, fmt.Errorf("EnumProcesses: %w", err)
 	}
 	procs = make([]types.Process, 0, len(pids))
 	var proc types.Process
@@ -124,10 +125,10 @@ func (p *process) init() error {
 	var args []string
 	var cwd string
 	var ppid int
-	pbi, err := getProcessBasicInformation(handle)
+	pbi, err := getProcessBasicInformation(syswin.Handle(handle))
 	if err == nil {
 		ppid = int(pbi.InheritedFromUniqueProcessID)
-		userProcParams, err := getUserProcessParams(handle, pbi)
+		userProcParams, err := getUserProcessParams(syswin.Handle(handle), pbi)
 		if err == nil {
 			if argsW, err := readProcessUnicodeString(handle, &userProcParams.CommandLine); err == nil {
 				args, err = splitCommandline(argsW)
@@ -158,15 +159,16 @@ func (p *process) init() error {
 	return nil
 }
 
-func getProcessBasicInformation(handle syscall.Handle) (pbi windows.ProcessBasicInformationStruct, err error) {
-	actualSize, err := windows.NtQueryInformationProcess(handle, windows.ProcessBasicInformation, unsafe.Pointer(&pbi), uint32(windows.SizeOfProcessBasicInformationStruct))
+func getProcessBasicInformation(handle syswin.Handle) (pbi windows.ProcessBasicInformationStruct, err error) {
+	var actualSize uint32
+	err = syswin.NtQueryInformationProcess(handle, syswin.ProcessBasicInformation, unsafe.Pointer(&pbi), uint32(windows.SizeOfProcessBasicInformationStruct), &actualSize)
 	if actualSize < uint32(windows.SizeOfProcessBasicInformationStruct) {
 		return pbi, errors.New("bad size for PROCESS_BASIC_INFORMATION")
 	}
 	return pbi, err
 }
 
-func getUserProcessParams(handle syscall.Handle, pbi windows.ProcessBasicInformationStruct) (params windows.RtlUserProcessParameters, err error) {
+func getUserProcessParams(handle syswin.Handle, pbi windows.ProcessBasicInformationStruct) (params windows.RtlUserProcessParameters, err error) {
 	const is32bitProc = unsafe.Sizeof(uintptr(0)) == 4
 
 	// Offset of params field within PEB structure.
@@ -179,12 +181,13 @@ func getUserProcessParams(handle syscall.Handle, pbi windows.ProcessBasicInforma
 	// Read the PEB from the target process memory
 	pebSize := paramsOffset + 8
 	peb := make([]byte, pebSize)
-	nRead, err := windows.ReadProcessMemory(handle, pbi.PebBaseAddress, peb)
+	var nRead uintptr
+	err = syswin.ReadProcessMemory(handle, pbi.PebBaseAddress, &peb[0], uintptr(pebSize), &nRead)
 	if err != nil {
 		return params, err
 	}
 	if nRead != uintptr(pebSize) {
-		return params, errors.Errorf("PEB: short read (%d/%d)", nRead, pebSize)
+		return params, fmt.Errorf("PEB: short read (%d/%d)", nRead, pebSize)
 	}
 
 	// Get the RTL_USER_PROCESS_PARAMETERS struct pointer from the PEB
@@ -192,12 +195,12 @@ func getUserProcessParams(handle syscall.Handle, pbi windows.ProcessBasicInforma
 
 	// Read the RTL_USER_PROCESS_PARAMETERS from the target process memory
 	paramsBuf := make([]byte, windows.SizeOfRtlUserProcessParameters)
-	nRead, err = windows.ReadProcessMemory(handle, paramsAddr, paramsBuf)
+	err = syswin.ReadProcessMemory(handle, paramsAddr, &paramsBuf[0], uintptr(windows.SizeOfRtlUserProcessParameters), &nRead)
 	if err != nil {
 		return params, err
 	}
 	if nRead != uintptr(windows.SizeOfRtlUserProcessParameters) {
-		return params, errors.Errorf("RTL_USER_PROCESS_PARAMETERS: short read (%d/%d)", nRead, windows.SizeOfRtlUserProcessParameters)
+		return params, fmt.Errorf("RTL_USER_PROCESS_PARAMETERS: short read (%d/%d)", nRead, windows.SizeOfRtlUserProcessParameters)
 	}
 
 	params = *(*windows.RtlUserProcessParameters)(unsafe.Pointer(&paramsBuf[0]))
@@ -219,7 +222,7 @@ func readProcessUnicodeString(handle syscall.Handle, s *windows.UnicodeString) (
 		return nil, err
 	}
 	if nRead != uintptr(s.Size) {
-		return nil, errors.Errorf("unicode string: short read: (%d/%d)", nRead, s.Size)
+		return nil, fmt.Errorf("unicode string: short read: (%d/%d)", nRead, s.Size)
 	}
 	return buf, nil
 }
@@ -288,43 +291,41 @@ func (p *process) Info() (types.ProcessInfo, error) {
 func (p *process) User() (types.UserInfo, error) {
 	handle, err := p.open()
 	if err != nil {
-		return types.UserInfo{}, errors.Wrap(err, "OpenProcess failed")
+		return types.UserInfo{}, fmt.Errorf("OpenProcess failed: %w", err)
 	}
 	defer syscall.CloseHandle(handle)
 
 	var accessToken syswin.Token
 	err = syswin.OpenProcessToken(syswin.Handle(handle), syscall.TOKEN_QUERY, &accessToken)
 	if err != nil {
-		return types.UserInfo{}, errors.Wrap(err, "OpenProcessToken failed")
+		return types.UserInfo{}, fmt.Errorf("OpenProcessToken failed: %w", err)
 	}
 	defer accessToken.Close()
 
 	tokenUser, err := accessToken.GetTokenUser()
 	if err != nil {
-		return types.UserInfo{}, errors.Wrap(err, "GetTokenUser failed")
+		return types.UserInfo{}, fmt.Errorf("GetTokenUser failed: %w", err)
 	}
 
 	sid, err := sidToString(tokenUser.User.Sid)
 	if sid == "" || err != nil {
-		const errStr = "failed to look up user SID"
 		if err != nil {
-			return types.UserInfo{}, errors.Wrap(err, errStr)
+			return types.UserInfo{}, fmt.Errorf("failed to look up user SID: %w", err)
 		}
-		return types.UserInfo{}, errors.New(errStr)
+		return types.UserInfo{}, errors.New("failed to look up user SID")
 	}
 
 	tokenGroup, err := accessToken.GetTokenPrimaryGroup()
 	if err != nil {
-		return types.UserInfo{}, errors.Wrap(err, "GetTokenPrimaryGroup failed")
+		return types.UserInfo{}, fmt.Errorf("GetTokenPrimaryGroup failed: %w", err)
 	}
 
 	gsid, err := sidToString(tokenGroup.PrimaryGroup)
 	if gsid == "" || err != nil {
-		const errStr = "failed to look up primary group SID"
 		if err != nil {
-			return types.UserInfo{}, errors.Wrap(err, errStr)
+			return types.UserInfo{}, fmt.Errorf("failed to look up primary group SID: %w", err)
 		}
-		return types.UserInfo{}, errors.New(errStr)
+		return types.UserInfo{}, errors.New("failed to look up primary group SID")
 	}
 
 	return types.UserInfo{

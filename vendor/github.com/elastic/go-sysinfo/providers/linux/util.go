@@ -20,10 +20,10 @@ package linux
 import (
 	"bufio"
 	"bytes"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"strconv"
-
-	"github.com/pkg/errors"
 )
 
 func parseKeyValue(content []byte, separator string, callback func(key, value []byte) error) error {
@@ -57,12 +57,12 @@ func findValue(filename, separator, key string) (string, error) {
 		}
 	}
 	if len(line) == 0 {
-		return "", errors.Errorf("%v not found", key)
+		return "", fmt.Errorf("%v not found", key)
 	}
 
 	parts := bytes.SplitN(line, []byte(separator), 2)
 	if len(parts) != 2 {
-		return "", errors.Errorf("unexpected line format for '%v'", string(line))
+		return "", fmt.Errorf("unexpected line format for '%v'", string(line))
 	}
 
 	return string(bytes.TrimSpace(parts[1])), nil
@@ -94,7 +94,7 @@ func parseBytesOrNumber(data []byte) (uint64, error) {
 
 	num, err := strconv.ParseUint(string(parts[0]), 10, 64)
 	if err != nil {
-		return 0, errors.Wrap(err, "failed to parse value")
+		return 0, fmt.Errorf("failed to parse value: %w", err)
 	}
 
 	var multiplier uint64 = 1
@@ -103,7 +103,7 @@ func parseBytesOrNumber(data []byte) (uint64, error) {
 		case "kB":
 			multiplier = 1024
 		default:
-			return 0, errors.Errorf("unhandled unit %v", string(parts[1]))
+			return 0, fmt.Errorf("unhandled unit %v", string(parts[1]))
 		}
 	}
 

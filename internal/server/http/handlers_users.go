@@ -26,12 +26,15 @@ func (h *Handlers) CreateUser(w http.ResponseWriter, r *http.Request) error {
 
 	b, err := json.Marshal(createdUser)
 	if err != nil {
-		return err
+		return errors.InputBodyErr(err, "invalid input body provided")
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_, err = w.Write(b)
-	return err
+	if err != nil {
+		return errors.Wrap(err, "failed to respond")
+	}
+	return nil
 }
 
 // ReadUserByEmail is the HTTP handler to read an existing user by email

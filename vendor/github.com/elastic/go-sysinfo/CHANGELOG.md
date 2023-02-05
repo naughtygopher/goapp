@@ -17,6 +17,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [1.9.0]
+
+### Added
+
+- Replace pkg/errors with Go 1.13 native errors. [#123](https://github.com/elastic/go-sysinfo/pull/123)
+- Add OS family mappings for `rocky`, `openEuler`, and `almalinux`. [#143](https://github.com/elastic/go-sysinfo/pull/143)
+
+### Changed
+
+- Remove custom sysctl implementation and partial cgo requirement. [#135](https://github.com/elastic/go-sysinfo/pull/135)
+- Changes on the `Host` and `LoadAverage` interfaces, now implemented by default on Linux and Darwin platforms. [#140](https://github.com/elastic/go-sysinfo/pull/140)
+
+## [1.8.1]
+
+### Fixed
+
+- Report OS name as Windows 11 when version is >= 10.0.22000. [#118](https://github.com/elastic/go-sysinfo/issues/118) [#121](https://github.com/elastic/go-sysinfo/pull/121)
+
+## [1.8.0]
+
+### Added
+
+- Added the Oracle Linux ("ol") platform to the "redhat" OS family. [#54](https://github.com/elastic/go-sysinfo/issues/54) [#115](https://github.com/elastic/go-sysinfo/pull/115)
+- Added the Linux Mint ("linuxmint") platform to the "debian" OS family. [#52](https://github.com/elastic/go-sysinfo/issues/52)
+
+### Changed
+
+- Updated module to require Go 1.17. [#111](https://github.com/elastic/go-sysinfo/pull/111)
+- The boot time value for Windows is now rounded to the nearest second to provide a more stable value. [#53](https://github.com/elastic/go-sysinfo/issues/53) [#114](https://github.com/elastic/go-sysinfo/pull/114)
+
+### Fixed
+
+- Fix handling of environment variables without values on macOS. [#94](https://github.com/elastic/go-sysinfo/pull/94)
+- Fix build tags on AIX provider such that CGO is required. [#106](https://github.com/elastic/go-sysinfo/issues/106)
+
 ## [1.7.1] - 2021-10-11
 
 ### Fixed
@@ -112,7 +147,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Changed the host containerized check to reduce false positives. [#42](https://github.com/elastic/go-sysinfo/pull/42) [#43](https://github.com/elastic/go-sysinfo/pull/43)
 
-[Unreleased]: https://github.com/elastic/go-sysinfo/compare/v1.7.1...HEAD
+[Unreleased]: https://github.com/elastic/go-sysinfo/compare/v1.8.1...HEAD
+[1.8.1]: https://github.com/elastic/go-sysinfo/releases/tag/v1.8.1
+[1.8.0]: https://github.com/elastic/go-sysinfo/releases/tag/v1.8.0
 [1.7.1]: https://github.com/elastic/go-sysinfo/releases/tag/v1.7.1
 [1.7.0]: https://github.com/elastic/go-sysinfo/releases/tag/v1.7.0
 [1.6.0]: https://github.com/elastic/go-sysinfo/releases/tag/v1.6.0

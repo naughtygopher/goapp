@@ -1,0 +1,33 @@
+version: "3.9"
+services:
+  redis:
+    image: "redis:alpine"
+    networks:
+      - goapp_network
+
+  postgres:
+    image: "postgres"
+    environment:
+      POSTGRES_PASSWORD: gauserpassword
+      POSTGRES_USER: gauser
+      POSTGRES_DB: goapp
+    networks:
+      - goapp_network
+
+  goapp:
+    image: golang:1.20
+    volumes:
+      - ${PWD}:/app
+    working_dir: /app
+    # command: go run main.go
+    tty: true
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - goapp_network
+
+networks:
+  goapp_network:

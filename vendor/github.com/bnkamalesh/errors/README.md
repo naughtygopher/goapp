@@ -7,19 +7,22 @@
 [![](https://godoc.org/github.com/nathany/looper?status.svg)](https://pkg.go.dev/github.com/bnkamalesh/errors?tab=doc)
 [![](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#error-handling)
 
-# Errors v0.9.0
+# Errors v0.9.4
 
-Errors package is a drop-in replacement of the built-in Go errors package with no external dependencies. It lets you create errors of 11 different types which should handle most of the use cases. Some of them are a bit too specific for web applications, but useful nonetheless. Following are the primary features of this package:
+Errors package is a drop-in replacement of the built-in Go errors package. It lets you create errors of 11 different types,
+which should handle most of the use cases. Some of them are a bit too specific for web applications, but useful nonetheless.
+
+Features of this package:
 
 1. Multiple (11) error types
-2. User friendly message
+2. Easy handling of User friendly message(s)
 3. Stacktrace - formatted, unfromatted, custom format (refer tests in errors_test.go)
-4. Retrieve the Program Counters, for compatibility external libraries which generate their own stacktrace
-5. Retrieve *runtime.Frames using `errors.RuntimeFrames(err error)`, for compatibility external libraries which generate their own stacktrace
+4. Retrieve the Program Counters for the stacktrace
+5. Retrieve runtime.Frames using `errors.RuntimeFrames(err error)` for the stacktrace
 6. HTTP status code and user friendly message (wrapped messages are concatenated) for all error types
 7. Helper functions to generate each error type
 8. Helper function to get error Type, error type as int, check if error type is wrapped anywhere in chain
-9. fmt.Formatter support
+9. `fmt.Formatter` support
 
 In case of nested errors, the messages & errors are also looped through the full chain of errors.
 
@@ -29,27 +32,31 @@ Go 1.13+
 
 ### Available error types
 
-1. TypeInternal - is the error type for when there is an internal system error. e.g. Database errors
-2. TypeValidation - is the error type for when there is a validation error. e.g. invalid email address
-3. TypeInputBody - is the error type for when the input data is invalid. e.g. invalid JSON
-4. TypeDuplicate - is the error type for when there's duplicate content. e.g. user with email already exists (when trying to register a new user)
-5. TypeUnauthenticated - is the error type when trying to access an authenticated API without authentication
-6. TypeUnauthorized - is the error type for when there's an unauthorized access attempt
-7. TypeEmpty - is the error type for when an expected non-empty resource, is empty
-8. TypeNotFound - is the error type for an expected resource is not found. e.g. user ID not found
-9. TypeMaximumAttempts - is the error type for attempting the same action more than an allowed threshold
-10. TypeSubscriptionExpired - is the error type for when a user's 'paid' account has expired
-11. TypeDownstreamDependencyTimedout - is the error type for when a request to a downstream dependent service times out
+1. TypeInternal - For internal system error. e.g. Database errors
+2. TypeValidation - For validation error. e.g. invalid email address
+3. TypeInputBody - For invalid input data. e.g. invalid JSON
+4. TypeDuplicate - For duplicate content error. e.g. user with email already exists (when trying to register a new user)
+5. TypeUnauthenticated - For not authenticated error
+6. TypeUnauthorized - For unauthorized access error
+7. TypeEmpty - For when an expected non-empty resource, is empty
+8. TypeNotFound - For expected resource not found. e.g. user ID not found
+9. TypeMaximumAttempts - For attempting the same action more than an allowed threshold
+10. TypeSubscriptionExpired - For when a user's 'paid' account has expired
+11. TypeDownstreamDependencyTimedout - For when a request to a downstream dependent service times out
 
-Helper functions are available for all the error types. Each of them have 2 helper functions, one which accepts only a string, and the other which accepts an original error as well as a user friendly message.
+Helper functions are available for all the error types. Each of them have 2 helper functions, one which accepts only a string,
+and the other which accepts an original error as well as a user friendly message.
 
-All the dedicated error type functions are documented [here](https://pkg.go.dev/github.com/bnkamalesh/errors?tab=doc#DownstreamDependencyTimedout). Names are consistent with the error type, e.g. errors.Internal(string) and errors.InternalErr(error, string)
+All the dedicated error type functions are documented [here](https://pkg.go.dev/github.com/bnkamalesh/errors?tab=doc#DownstreamDependencyTimedout).
+Names are consistent with the error type, e.g. errors.Internal(string) and errors.InternalErr(error, string)
 
 ### User friendly messages
 
-More often than not, when writing APIs, we'd want to respond with an easier to undersand user friendly message. Instead of returning the raw error. And log the raw error.
+More often than not when writing APIs, we'd want to respond with an easier to undersand user friendly message.
+Instead of returning the raw error and log the raw error.
 
-There are helper functions for all the error types, when in need of setting a friendly message, there are helper functions have a suffix 'Err'. All such helper functions accept the original error and a string.
+There are helper functions for all the error types. When in need of setting a friendly message, there
+are helper functions with the _suffix_ **'Err'**. All such helper functions accept the original error and a string.
 
 ```golang
 package main
@@ -74,7 +81,7 @@ func Foo() error {
 
 func main() {
 	err := Foo()
-	
+
 	fmt.Println("err:", err)
 	fmt.Println("\nerr.Error():", err.Error())
 
@@ -88,15 +95,16 @@ func main() {
 }
 ```
 
-Output 
+Output
+
 ```
 err: bar is not happy
 
-err.Error(): /path/to/file.go:16: bar is not happy
-hello world!
+err.Error(): /Users/k.balakumaran/go/src/github.com/bnkamalesh/errors/cmd/main.go:16: bar is not happy
+hello world!bar is not happy
 
-formatted +v: /path/to/file.go:16: bar is not happy
-hello world!
+formatted +v: /Users/k.balakumaran/go/src/github.com/bnkamalesh/errors/cmd/main.go:16: bar is not happy
+hello world!bar is not happy
 
 formatted v: bar is not happy
 
@@ -115,7 +123,7 @@ A common annoyance with Go errors which most people are aware of is, figuring ou
 
 ### HTTP status code & message
 
-The function `errors.HTTPStatusCodeMessage(error) (int, string, bool)` returns the HTTP status code, message, and a boolean value. The boolean is true, if the error is of type *Error from this package. If error is nested, it unwraps and returns a single concatenated message. Sample described in the 'How to use?' section
+The function `errors.HTTPStatusCodeMessage(error) (int, string, bool)` returns the HTTP status code, message, and a boolean value. The boolean is true, if the error is of type \*Error from this package. If error is nested, it unwraps and returns a single concatenated message. Sample described in the 'How to use?' section
 
 ## How to use?
 
@@ -130,8 +138,8 @@ import (
 	"time"
 
 	"github.com/bnkamalesh/errors"
-	"github.com/bnkamalesh/webgo/v4"
-	"github.com/bnkamalesh/webgo/v4/middleware"
+	"github.com/bnkamalesh/webgo/v6"
+	"github.com/bnkamalesh/webgo/v6/middleware/accesslog"
 )
 
 func bar() error {
@@ -170,7 +178,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 func routes() []*webgo.Route {
 	return []*webgo.Route{
-		&webgo.Route{
+		{
 			Name:    "home",
 			Method:  http.MethodGet,
 			Pattern: "/",
@@ -187,56 +195,59 @@ func main() {
 		Port:         "8080",
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 60 * time.Second,
-	}, routes())
+	}, routes()...)
 
-	router.UseOnSpecialHandlers(middleware.AccessLog)
-	router.Use(middleware.AccessLog)
+	router.UseOnSpecialHandlers(accesslog.AccessLog)
+	router.Use(accesslog.AccessLog)
 	router.Start()
 }
-
 ```
 
-[webgo](https://github.com/bnkamalesh/webgo) was used to illustrate the usage of the function, `errors.HTTPStatusCodeMessage`. It returns the appropriate http status code, user friendly message stored within, and a boolean value. Boolean value is `true` if the returned error of type *Error.
-Since we get the status code and message separately, when using any web framework, you can set values according to the respective framework's native functions. In case of Webgo, it wraps errors in a struct of its own. Otherwise, you could directly respond to the HTTP request by calling `errors.WriteHTTP(error,http.ResponseWriter)`. 
+[webgo](https://github.com/bnkamalesh/webgo) was used to illustrate the usage of the function, `errors.HTTPStatusCodeMessage`. It returns the appropriate http status code, user friendly message stored within, and a boolean value. Boolean value is `true` if the returned error of type \*Error.
+Since we get the status code and message separately, when using any web framework, you can set values according to the respective framework's native functions. In case of Webgo, it wraps errors in a struct of its own. Otherwise, you could directly respond to the HTTP request by calling `errors.WriteHTTP(error,http.ResponseWriter)`.
 
 Once the app is running, you can check the response by opening `http://localhost:8080` on your browser. Or on terminal
+
 ```bash
 $ curl http://localhost:8080
 {"errors":"we lost bar2!. bar2 was deceived by bar1 :(","status":500} // output
 ```
 
 And the `fmt.Println(err.Error())` generated output on stdout would be:
+
 ```bash
 /Users/username/go/src/errorscheck/main.go:28 /Users/username/go/src/errorscheck/main.go:20 sinking bar
 ```
 
-## Benchmark [2021-12-13]
+## Benchmark [2022-01-12]
+
+MacBook Pro (13-inch, 2020, Four Thunderbolt 3 ports), 32 GB 3733 MHz LPDDR4X
 
 ```bash
 $ go version
-go version go1.17.4 linux/amd64
+go version go1.19.5 darwin/amd64
 
 $ go test -benchmem -bench .
-goos: linux
+goos: darwin
 goarch: amd64
 pkg: github.com/bnkamalesh/errors
-cpu: Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz
-Benchmark_Internal-8                             772088       1412 ns/op    1272 B/op    5 allocs/op
-Benchmark_Internalf-8                            695674       1692 ns/op    1296 B/op    6 allocs/op
-Benchmark_InternalErr-8                          822500       1404 ns/op    1272 B/op    5 allocs/op
-Benchmark_InternalGetError-8                     881791       1319 ns/op    1368 B/op    6 allocs/op
-Benchmark_InternalGetErrorWithNestedError-8      712803       1488 ns/op    1384 B/op    6 allocs/op
-Benchmark_InternalGetMessage-8                   927864       1237 ns/op    1272 B/op    5 allocs/op
-Benchmark_InternalGetMessageWithNestedError-8    761164       1675 ns/op    1296 B/op    6 allocs/op
-Benchmark_HTTPStatusCodeMessage-8                29116684     41.62 ns/op   16 B/op      1 allocs/op
-BenchmarkHasType-8                               100000000    11.50 ns/op   0 B/op       0 allocs/op
+cpu: Intel(R) Core(TM) i7-1068NG7 CPU @ 2.30GHz
+Benchmark_Internal-8                            	 1526194	       748.8 ns/op	    1104 B/op	       2 allocs/op
+Benchmark_Internalf-8                           	 1281465	       944.0 ns/op	    1128 B/op	       3 allocs/op
+Benchmark_InternalErr-8                         	 1494351	       806.7 ns/op	    1104 B/op	       2 allocs/op
+Benchmark_InternalGetError-8                    	  981162	      1189 ns/op	    1528 B/op	       6 allocs/op
+Benchmark_InternalGetErrorWithNestedError-8     	  896322	      1267 ns/op	    1544 B/op	       6 allocs/op
+Benchmark_InternalGetMessage-8                  	 1492812	       804.2 ns/op	    1104 B/op	       2 allocs/op
+Benchmark_InternalGetMessageWithNestedError-8   	 1362092	       886.3 ns/op	    1128 B/op	       3 allocs/op
+Benchmark_HTTPStatusCodeMessage-8               	27494096	        41.38 ns/op	      16 B/op	       1 allocs/op
+BenchmarkHasType-8                              	100000000	        10.50 ns/op	       0 B/op	       0 allocs/op
 PASS
-ok  	github.com/bnkamalesh/errors	10.604s
+ok  	github.com/bnkamalesh/errors	15.006s
 ```
 
 ## Contributing
 
-More error types, customization, features etc; PRs & issues are welcome!
+More error types, customization, features, multi-errors; PRs & issues are welcome!
 
 ## The gopher
 

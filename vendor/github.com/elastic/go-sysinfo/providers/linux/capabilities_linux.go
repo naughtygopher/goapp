@@ -26,8 +26,9 @@ import (
 // capabilityNames is mapping of capability constant values to names.
 //
 // Generated with:
-//   curl -s https://raw.githubusercontent.com/torvalds/linux/master/include/uapi/linux/capability.h | \
-//   grep -P '^#define CAP_\w+\s+\d+' | perl -pe 's/#define (\w+)\s+(\d+)/\2: "\1",/g'
+//
+//	curl -s https://raw.githubusercontent.com/torvalds/linux/master/include/uapi/linux/capability.h | \
+//	grep -P '^#define CAP_\w+\s+\d+' | perl -pe 's/#define (\w+)\s+(\d+)/\2: "\1",/g'
 var capabilityNames = map[int]string{
 	0:  "chown",
 	1:  "dac_override",

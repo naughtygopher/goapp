@@ -18,7 +18,7 @@
 package registry
 
 import (
-	"github.com/pkg/errors"
+	"fmt"
 
 	"github.com/elastic/go-sysinfo/types"
 )
@@ -41,14 +41,14 @@ type ProcessProvider interface {
 func Register(provider interface{}) {
 	if h, ok := provider.(HostProvider); ok {
 		if hostProvider != nil {
-			panic(errors.Errorf("HostProvider already registered: %v", hostProvider))
+			panic(fmt.Sprintf("HostProvider already registered: %v", hostProvider))
 		}
 		hostProvider = h
 	}
 
 	if p, ok := provider.(ProcessProvider); ok {
 		if processProvider != nil {
-			panic(errors.Errorf("ProcessProvider already registered: %v", processProvider))
+			panic(fmt.Sprintf("ProcessProvider already registered: %v", processProvider))
 		}
 		processProvider = p
 	}

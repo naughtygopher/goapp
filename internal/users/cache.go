@@ -4,24 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/bnkamalesh/errors"
-	"github.com/gomodule/redigo/redis"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/bnkamalesh/goapp/internal/pkg/cachestore"
 )
 
-type userCachestore interface {
-	SetUser(ctx context.Context, email string, u *User) error
-	ReadUserByEmail(ctx context.Context, email string) (*User, error)
-}
-
 type usercache struct {
-	pool *redis.Pool
+	cli *redis.Client
 }
 
-func (uc *usercache) conn(ctx context.Context) (redis.Conn, error) {
-	return uc.pool.GetContext(ctx)
+func (uc *usercache) conn(ctx context.Context) (*redis.Conn, error) {
+	return uc.cli.Conn(), nil
 }
 
 func userCacheKey(id string) string {
@@ -29,7 +25,7 @@ func userCacheKey(id string) string {
 }
 
 func (uc *usercache) SetUser(ctx context.Context, email string, u *User) error {
-	if uc.pool == nil {
+	if uc.cli == nil {
 		return cachestore.ErrCacheNotInitialized
 	}
 
@@ -42,13 +38,8 @@ func (uc *usercache) SetUser(ctx context.Context, email string, u *User) error {
 	payload, _ := json.Marshal(u)
 
 	key := userCacheKey(email)
-	_, err = conn.Do("SET", key, payload)
-	if err != nil {
-		return errors.InternalErr(err, errors.DefaultMessage)
-	}
 
-	// expiry in seconds. 1hr
-	_, err = conn.Do("EXPIRE", key, 60*60*1)
+	err = conn.Set(ctx, key, payload, time.Hour).Err()
 	if err != nil {
 		return errors.InternalErr(err, errors.DefaultMessage)
 	}
@@ -57,7 +48,7 @@ func (uc *usercache) SetUser(ctx context.Context, email string, u *User) error {
 }
 
 func (uc *usercache) ReadUserByEmail(ctx context.Context, email string) (*User, error) {
-	if uc.pool == nil {
+	if uc.cli == nil {
 		return nil, cachestore.ErrCacheNotInitialized
 	}
 
@@ -68,17 +59,17 @@ func (uc *usercache) ReadUserByEmail(ctx context.Context, email string) (*User, 
 
 	key := userCacheKey(email)
 
-	payload, err := conn.Do("GET", key)
+	cmd := conn.Get(ctx, key)
+	payload, err := cmd.Bytes()
 	if err != nil {
-		return nil, errors.InternalErr(err, errors.DefaultMessage)
+		return nil, errors.Wrap(err, errors.DefaultMessage)
 	}
 	if payload == nil {
 		return nil, cachestore.ErrCacheMiss
 	}
 
-	payloadBytes, _ := payload.([]byte)
 	u := new(User)
-	err = json.Unmarshal(payloadBytes, u)
+	err = json.Unmarshal(payload, u)
 	if err != nil {
 		return nil, errors.InternalErr(err, errors.DefaultMessage)
 	}
@@ -86,8 +77,8 @@ func (uc *usercache) ReadUserByEmail(ctx context.Context, email string) (*User, 
 	return u, nil
 }
 
-func newCacheStore(pool *redis.Pool) (*usercache, error) {
+func NewCacheStore(cli *redis.Client) (*usercache, error) {
 	return &usercache{
-		pool: pool,
+		cli: cli,
 	}, nil
 }

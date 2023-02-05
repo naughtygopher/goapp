@@ -20,10 +20,9 @@ package linux
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"os"
-
-	"github.com/pkg/errors"
 )
 
 const procOneCgroup = "/proc/1/cgroup"
@@ -36,7 +35,7 @@ func IsContainerized() (bool, error) {
 			return false, nil
 		}
 
-		return false, errors.Wrap(err, "failed to read process cgroups")
+		return false, fmt.Errorf("failed to read process cgroups: %w", err)
 	}
 
 	return isContainerizedCgroup(data)

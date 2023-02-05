@@ -18,12 +18,12 @@
 package windows
 
 import (
+	"errors"
 	"os"
 	"time"
 
 	windows "github.com/elastic/go-windows"
 	"github.com/joeshaw/multierror"
-	"github.com/pkg/errors"
 
 	"github.com/elastic/go-sysinfo/internal/registry"
 	"github.com/elastic/go-sysinfo/providers/shared"
@@ -98,7 +98,7 @@ type reader struct {
 
 func (r *reader) addErr(err error) bool {
 	if err != nil {
-		if errors.Cause(err) != types.ErrNotImplemented {
+		if !errors.Is(err, types.ErrNotImplemented) {
 			r.errs = append(r.errs, err)
 		}
 		return true

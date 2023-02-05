@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/bnkamalesh/errors"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Config struct holds all the configurations required the datastore package
@@ -52,7 +53,7 @@ func (cfg *Config) ConnURL() string {
 func NewService(cfg *Config) (*pgxpool.Pool, error) {
 	poolcfg, err := pgxpool.ParseConfig(cfg.ConnURL())
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to parse config")
 	}
 
 	poolcfg.MaxConnLifetime = cfg.IdleTimeout
@@ -62,9 +63,9 @@ func NewService(cfg *Config) (*pgxpool.Pool, error) {
 	dialer.Timeout = cfg.DialTimeout
 	poolcfg.ConnConfig.DialFunc = dialer.DialContext
 
-	pool, err := pgxpool.ConnectConfig(context.Background(), poolcfg)
+	pool, err := pgxpool.NewWithConfig(context.Background(), poolcfg)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to create pgx pool")
 	}
 
 	return pool, nil

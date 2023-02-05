@@ -15,20 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// +build amd64,cgo arm64,cgo
+//go:build amd64 || arm64
+// +build amd64 arm64
 
 package darwin
 
 import (
-	"github.com/pkg/errors"
+	"fmt"
+
+	"golang.org/x/sys/unix"
 )
 
 const hwMemsizeMIB = "hw.memsize"
 
 func MemTotal() (uint64, error) {
-	var size uint64
-	if err := sysctlByName(hwMemsizeMIB, &size); err != nil {
-		return 0, errors.Wrap(err, "failed to get mem total")
+	size, err := unix.SysctlUint64(hwMemsizeMIB)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get mem total: %w", err)
 	}
 
 	return size, nil

@@ -1,10 +1,10 @@
-FROM golang:1.18 AS builder
+FROM golang:1.20 AS builder
 
-COPY ${PWD} /app
+COPY ../ /app
 WORKDIR /app
-
+RUN ls
 # Toggle CGO on your app requirement
-RUN CGO_ENABLED=0 go build -ldflags '-s -w -extldflags "-static"' -o /app/appbin *.go
+RUN CGO_ENABLED=0 go build -ldflags '-s -w -extldflags "-static"' -o /app/appbin main.go
 # Use below if using vendor
 # RUN CGO_ENABLED=0 go build -mod=vendor -ldflags '-extldflags "-static"' -o /app/appbin *.go
 

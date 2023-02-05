@@ -18,7 +18,7 @@
 package linux
 
 import (
-	"github.com/pkg/errors"
+	"fmt"
 
 	"github.com/elastic/go-sysinfo/types"
 )
@@ -32,7 +32,7 @@ func parseMemInfo(content []byte) (*types.HostMemoryInfo, error) {
 	err := parseKeyValue(content, ":", func(key, value []byte) error {
 		num, err := parseBytesOrNumber(value)
 		if err != nil {
-			return errors.Wrapf(err, "failed to parse %v value of %v", string(key), string(value))
+			return fmt.Errorf("failed to parse %v value of %v: %w", string(key), string(value), err)
 		}
 
 		k := string(key)
