@@ -106,7 +106,7 @@ func errWrapper(h func(w http.ResponseWriter, r *http.Request) error) http.Handl
 
 		status, msg, _ := errors.HTTPStatusCodeMessage(err)
 		webgo.SendError(w, msg, status)
-		logger.Error(errors.Stacktrace(err))
+		_ = logger.Error(errors.Stacktrace(err))
 	}
 }
 

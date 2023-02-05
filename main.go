@@ -86,5 +86,5 @@ func main() {
 		return
 	}
 
-	h.Start()
+	_ = logger.Fatal(h.Start())
 }
