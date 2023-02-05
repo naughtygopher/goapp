@@ -65,7 +65,7 @@ func main() {
 		return
 	}
 
-	a, err := api.NewService(l, us)
+	a, err := api.NewService(us)
 	if err != nil {
 		_ = logger.Fatal(fmt.Sprintf("%+v", err))
 		return
