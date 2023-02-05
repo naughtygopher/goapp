@@ -112,7 +112,7 @@ func (us *Users) ReadByEmail(ctx context.Context, email string) (*User, error) {
 		!errors.Is(err, cachestore.ErrCacheNotInitialized) {
 		// caches are usually read-through, i.e. in case of error, just log and continue to fetch from
 		// primary datastore
-		us.logHandler.Error(err.Error())
+		_ = us.logHandler.Error(err.Error())
 	} else if err == nil {
 		return u, nil
 	}
@@ -126,7 +126,7 @@ func (us *Users) ReadByEmail(ctx context.Context, email string) (*User, error) {
 	if err != nil {
 		// in case of error while storing in cache, it is only logged
 		// This behaviour as well as read-through cache behaviour depends on your business logic.
-		us.logHandler.Error(err.Error())
+		_ = us.logHandler.Error(err.Error())
 	}
 
 	return u, nil

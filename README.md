@@ -1,6 +1,6 @@
 <p align="center"><img src="https://user-images.githubusercontent.com/1092882/86512217-bfd5a480-be1d-11ea-976c-a7c0ac0cd1f1.png" alt="goapp gopher" width="256px"/></p>
 
-[![Build Status](https://travis-ci.org/bnkamalesh/goapp.svg?branch=master)](https://travis-ci.org/bnkamalesh/goapp)
+[![](https://github.com/bnkamalesh/goapp/actions/workflows/tests.yaml/badge.svg)](https://github.com/bnkamalesh/webgo/actions/workflows/tests.yaml)
 [![codecov](https://codecov.io/gh/bnkamalesh/goapp/branch/master/graph/badge.svg)](https://codecov.io/gh/bnkamalesh/goapp)
 [![Go Report Card](https://goreportcard.com/badge/github.com/bnkamalesh/goapp)](https://goreportcard.com/report/github.com/bnkamalesh/goapp)
 [![Maintainability](https://api.codeclimate.com/v1/badges/acd31bcdc1a4d668ebf4/maintainability)](https://codeclimate.com/github/bnkamalesh/goapp/maintainability)

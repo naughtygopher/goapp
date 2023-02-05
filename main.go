@@ -18,25 +18,25 @@ func main() {
 
 	cfg, err := configs.New()
 	if err != nil {
-		l.Fatal(fmt.Sprintf("%+v", err))
+		_ = logger.Fatal(fmt.Sprintf("%+v", err))
 		return
 	}
 
 	dscfg, err := cfg.Datastore()
 	if err != nil {
-		l.Fatal(fmt.Sprintf("%+v", err))
+		_ = logger.Fatal(fmt.Sprintf("%+v", err))
 		return
 	}
 
 	pqdriver, err := datastore.NewService(dscfg)
 	if err != nil {
-		l.Fatal(fmt.Sprintf("%+v", err))
+		_ = logger.Fatal(fmt.Sprintf("%+v", err))
 		return
 	}
 
 	cacheCfg, err := cfg.Cachestore()
 	if err != nil {
-		l.Fatal(fmt.Sprintf("%+v", err))
+		_ = logger.Fatal(fmt.Sprintf("%+v", err))
 		return
 	}
 
@@ -49,31 +49,31 @@ func main() {
 
 	userStore, err := users.NewStore(pqdriver)
 	if err != nil {
-		l.Fatal(fmt.Sprintf("%+v", err))
+		_ = logger.Fatal(fmt.Sprintf("%+v", err))
 		return
 	}
 
 	userCache, err := users.NewCacheStore(redispool)
 	if err != nil {
-		l.Fatal(fmt.Sprintf("%+v", err))
+		_ = logger.Fatal(fmt.Sprintf("%+v", err))
 		return
 	}
 
 	us, err := users.NewService(l, userStore, userCache)
 	if err != nil {
-		l.Fatal(fmt.Sprintf("%+v", err))
+		_ = logger.Fatal(fmt.Sprintf("%+v", err))
 		return
 	}
 
 	a, err := api.NewService(l, us)
 	if err != nil {
-		l.Fatal(fmt.Sprintf("%+v", err))
+		_ = logger.Fatal(fmt.Sprintf("%+v", err))
 		return
 	}
 
 	httpCfg, err := cfg.HTTP()
 	if err != nil {
-		l.Fatal(fmt.Sprintf("%+v", err))
+		_ = logger.Fatal(fmt.Sprintf("%+v", err))
 		return
 	}
 
@@ -82,7 +82,7 @@ func main() {
 		a,
 	)
 	if err != nil {
-		l.Fatal(fmt.Sprintf("%+v", err))
+		_ = logger.Fatal(fmt.Sprintf("%+v", err))
 		return
 	}
 
