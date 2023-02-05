@@ -1,4 +1,4 @@
-# Go Licenser [![Build Status](https://beats-ci.elastic.co/job/Library/job/go-licenser-mbp/job/master/badge/icon)](https://beats-ci.elastic.co/job/Library/job/go-licenser-mbp/job/master/)
+# Go Licenser [![Build Status](https://beats-ci.elastic.co/job/Library/job/go-licenser-mbp/job/main/badge/icon)](https://beats-ci.elastic.co/job/Library/job/go-licenser-mbp/job/main/)
 
 Small zero dependency license header checker for source files. The aim of this project is to provide a common
 binary that can be used to ensure that code source files contain a license header. It's unlikely that this project

@@ -3,16 +3,13 @@ package users
 import (
 	"context"
 	"database/sql"
+	"strings"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/bnkamalesh/errors"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type store interface {
-	Create(ctx context.Context, u *User) error
-	ReadByEmail(ctx context.Context, email string) (*User, error)
-}
 
 type userStore struct {
 	qbuilder  squirrel.StatementBuilderType
@@ -35,6 +32,9 @@ func (us *userStore) Create(ctx context.Context, u *User) error {
 
 	_, err = us.pqdriver.Exec(ctx, query, args...)
 	if err != nil {
+		if strings.Contains(err.Error(), "violates unique constraint") {
+			return errors.DuplicateErrf(err, "user with email '%s' already exists", u.Email)
+		}
 		return errors.InternalErr(err, errors.DefaultMessage)
 	}
 
@@ -76,6 +76,10 @@ func (us *userStore) ReadByEmail(ctx context.Context, email string) (*User, erro
 		&user.UpdatedAt,
 	)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.NotFoundErrf(err, "user with email '%s' not found", email)
+		}
+
 		return nil, errors.InternalErr(err, errors.DefaultMessage)
 	}
 
@@ -87,7 +91,7 @@ func (us *userStore) ReadByEmail(ctx context.Context, email string) (*User, erro
 	return user, nil
 }
 
-func newStore(pqdriver *pgxpool.Pool) (*userStore, error) {
+func NewStore(pqdriver *pgxpool.Pool) (*userStore, error) {
 	return &userStore{
 		pqdriver:  pqdriver,
 		qbuilder:  squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar),

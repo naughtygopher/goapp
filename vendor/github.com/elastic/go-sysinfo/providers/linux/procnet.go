@@ -18,12 +18,11 @@
 package linux
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
-
-	"github.com/pkg/errors"
 
 	"github.com/elastic/go-sysinfo/types"
 )
@@ -64,13 +63,13 @@ func parseEntry(line1, line2 string) (map[string]uint64, error) {
 		if strings.Contains(value, "-") {
 			signedParsed, err := strconv.ParseInt(value, 10, 64)
 			if err != nil {
-				return nil, errors.Wrapf(err, "error parsing string to int in line: %#v", valueArr)
+				return nil, fmt.Errorf("error parsing string to int in line: %#v: %w", valueArr, err)
 			}
 			parsed = uint64(signedParsed)
 		} else {
 			parsed, err = strconv.ParseUint(value, 10, 64)
 			if err != nil {
-				return nil, errors.Wrapf(err, "error parsing string to int in line: %#v", valueArr)
+				return nil, fmt.Errorf("error parsing string to int in line: %#v: %w", valueArr, err)
 			}
 		}
 
@@ -97,7 +96,7 @@ func parseNetFile(body string) (map[string]map[string]uint64, error) {
 		}
 		valMap, err := parseEntry(keysSplit[1], valuesSplit[1])
 		if err != nil {
-			return nil, errors.Wrap(err, "error parsing lines")
+			return nil, fmt.Errorf("error parsing lines: %w", err)
 		}
 		fileMetrics[valuesSplit[0]] = valMap
 	}
@@ -108,7 +107,7 @@ func parseNetFile(body string) (map[string]map[string]uint64, error) {
 func getNetSnmpStats(raw []byte) (types.SNMP, error) {
 	snmpData, err := parseNetFile(string(raw))
 	if err != nil {
-		return types.SNMP{}, errors.Wrap(err, "error parsing SNMP")
+		return types.SNMP{}, fmt.Errorf("error parsing SNMP: %w", err)
 	}
 	output := types.SNMP{}
 	fillStruct(&output, snmpData)
@@ -120,7 +119,7 @@ func getNetSnmpStats(raw []byte) (types.SNMP, error) {
 func getNetstatStats(raw []byte) (types.Netstat, error) {
 	netstatData, err := parseNetFile(string(raw))
 	if err != nil {
-		return types.Netstat{}, errors.Wrap(err, "error parsing netstat")
+		return types.Netstat{}, fmt.Errorf("error parsing netstat: %w", err)
 	}
 	output := types.Netstat{}
 	fillStruct(&output, netstatData)

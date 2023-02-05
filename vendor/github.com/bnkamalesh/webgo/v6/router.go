@@ -10,18 +10,21 @@ import (
 	"sync"
 )
 
-// urlchars is regex to validate characters in a URI parameter
-// const urlchars = `([a-zA-Z0-9\*\-+._~!$()=&',;:@%]+)`
-// Regex prepared based on http://stackoverflow.com/a/4669750/1359163,
-// https://tools.ietf.org/html/rfc3986
-// Though the current one allows invalid characters in the URI parameter, it has better performance.
-const (
-	urlchars                  = `([^/]+)`
-	urlwildcard               = `(.*)[^/]`
-	urlwildcardWithTrailslash = `(.*)[/]?`
-	trailingSlash             = `[/]?`
-	errDuplicateKey           = `Error: Duplicate URI keys found`
-)
+// httpResponseWriter has all the functions to be implemented by the custom
+// responsewriter used
+type httpResponseWriter interface {
+	http.ResponseWriter
+	http.CloseNotifier //nolint
+	http.Flusher
+	http.Hijacker
+	http.Pusher
+}
+
+func init() {
+	// ensure the custom response writer implements all the required functions
+	crw := &customResponseWriter{}
+	_ = httpResponseWriter(crw)
+}
 
 var (
 	validHTTPMethods = []string{
@@ -91,11 +94,18 @@ func (crw *customResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 }
 
 // CloseNotify implements the http.CloseNotifier interface
-func (crw *customResponseWriter) CloseNotify() <-chan bool {
-	if n, ok := crw.ResponseWriter.(http.CloseNotifier); ok {
+func (crw *customResponseWriter) CloseNotify() <-chan bool { //nolint
+	if n, ok := crw.ResponseWriter.(http.CloseNotifier); ok { //nolint
 		return n.CloseNotify()
 	}
 	return nil
+}
+
+func (crw *customResponseWriter) Push(target string, opts *http.PushOptions) error {
+	if n, ok := crw.ResponseWriter.(http.Pusher); ok {
+		return n.Push(target, opts)
+	}
+	return errors.New("pusher not implemented")
 }
 
 func (crw *customResponseWriter) reset() {
@@ -204,11 +214,9 @@ func (rtr *Router) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		),
 	)
 
+	defer releasePoolResources(crw, ctxPayload)
 	route.serve(crw, r)
 
-	// IMPORTANT/TODO: if the handler panics, resources are not released from the pool.
-	// `defer releasePoolResources(crw, ctxPayload)` would solve the problem but with a potential performance hit
-	releasePoolResources(crw, ctxPayload)
 }
 
 // Use adds a middleware layer

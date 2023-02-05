@@ -1,12 +1,12 @@
 package cachestore
 
 import (
+	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/bnkamalesh/errors"
-	"github.com/gomodule/redigo/redis"
+	"github.com/redis/go-redis/v9"
 )
 
 var (
@@ -19,11 +19,11 @@ var (
 // Config holds all the configuration required for this package
 type Config struct {
 	Host string
-	Port string
+	Port int
 
-	StoreName string
-	Username  string
-	Password  string
+	DB       int
+	Username string
+	Password string
 
 	PoolSize     int
 	IdleTimeout  time.Duration
@@ -32,39 +32,23 @@ type Config struct {
 	DialTimeout  time.Duration
 }
 
-// NewService returns an instance of redis.Pool with all the required configurations set
-func NewService(cfg *Config) (*redis.Pool, error) {
-	db, _ := strconv.Atoi(cfg.StoreName)
-	rpool := &redis.Pool{
-		MaxIdle:         cfg.PoolSize,
-		MaxActive:       cfg.PoolSize,
-		IdleTimeout:     cfg.IdleTimeout,
-		Wait:            true,
-		MaxConnLifetime: cfg.IdleTimeout * 2,
-		Dial: func() (redis.Conn, error) {
-			return redis.Dial(
-				"tcp",
-				fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
-				redis.DialReadTimeout(cfg.ReadTimeout),
-				redis.DialWriteTimeout(cfg.WriteTimeout),
-				redis.DialPassword(cfg.Password),
-				redis.DialConnectTimeout(cfg.DialTimeout),
-				redis.DialDatabase(db),
-			)
+func New(cfg *Config) (*redis.Client, error) {
+	cli := redis.NewClient(
+		&redis.Options{
+			Addr:            fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
+			Username:        cfg.Username,
+			Password:        cfg.Password,
+			DB:              cfg.DB,
+			DialTimeout:     cfg.DialTimeout,
+			ReadTimeout:     cfg.ReadTimeout,
+			WriteTimeout:    cfg.WriteTimeout,
+			ConnMaxIdleTime: cfg.IdleTimeout,
+			PoolSize:        cfg.PoolSize,
 		},
-	}
-
-	conn := rpool.Get()
-	rep, err := conn.Do("PING")
+	)
+	err := cli.Ping(context.Background()).Err()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to ping")
 	}
-
-	pong, _ := rep.(string)
-	if pong != "PONG" {
-		return nil, errors.New("ping failed")
-	}
-	conn.Close()
-
-	return rpool, nil
+	return cli, nil
 }

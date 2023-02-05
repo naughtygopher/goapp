@@ -20,9 +20,9 @@ type HTTP struct {
 }
 
 // Start starts the HTTP server
-func (h *HTTP) Start() {
+func (h *HTTP) Start() error {
 	webgo.LOGHANDLER.Info("HTTP server, listening on", h.cfg.Host, h.cfg.Port)
-	h.server.ListenAndServe()
+	return h.server.ListenAndServe()
 }
 
 // Config holds all the configuration required to start the HTTP server

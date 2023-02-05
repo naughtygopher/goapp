@@ -11,6 +11,7 @@ import (
 	"github.com/bnkamalesh/webgo/v6"
 
 	"github.com/bnkamalesh/goapp/internal/api"
+	"github.com/bnkamalesh/goapp/internal/pkg/logger"
 )
 
 // Handlers struct has all the dependencies required for HTTP handlers
@@ -89,7 +90,7 @@ func (h *Handlers) HelloWorld(w http.ResponseWriter, r *http.Request) error {
 			w.Header().Set("Content-Type", "text/html; charset=UTF-8")
 			_, err = w.Write(buff.Bytes())
 			if err != nil {
-				return err
+				return errors.Wrap(err, "failed to respond")
 			}
 		}
 	}
@@ -105,6 +106,7 @@ func errWrapper(h func(w http.ResponseWriter, r *http.Request) error) http.Handl
 
 		status, msg, _ := errors.HTTPStatusCodeMessage(err)
 		webgo.SendError(w, msg, status)
+		_ = logger.Error(errors.Stacktrace(err))
 	}
 }
 
@@ -114,8 +116,10 @@ func panicRecoverer(w http.ResponseWriter, r *http.Request, next http.HandlerFun
 		if p == nil {
 			return
 		}
-		fmt.Println(string(debug.Stack()))
 		webgo.R500(w, errors.DefaultMessage)
+
+		_ = logger.Error(fmt.Sprintf("%+v", p))
+		fmt.Println(string(debug.Stack()))
 	}()
 
 	next(w, r)
@@ -127,7 +131,7 @@ func loadHomeTemplate(basePath string) (*template.Template, error) {
 		fmt.Sprintf("%s/index.html", basePath),
 	)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed parsing templates")
 	}
 
 	return home, nil

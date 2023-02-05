@@ -18,10 +18,11 @@
 package windows
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 	"unsafe"
 
-	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 )
 
@@ -111,7 +112,7 @@ func (mapper *deviceMapper) DevicePathToDrivePath(path string) (string, error) {
 	isMUP := strings.Index(pathLower, DeviceMup) == 0
 	mask, err := mapper.GetLogicalDrives()
 	if err != nil {
-		return "", errors.Wrap(err, "GetLogicalDrives")
+		return "", fmt.Errorf("GetLogicalDrives: %w", err)
 	}
 
 	for bit := uint32(0); mask != 0 && bit < uint32('Z'-'A'+1); bit++ {
@@ -177,7 +178,7 @@ func (m testingDeviceProvider) QueryDosDevice(nameW *uint16, buf *uint16, length
 	}
 	path, ok := m[drive]
 	if !ok {
-		return 0, errors.Errorf("drive %c not found", drive)
+		return 0, fmt.Errorf("drive %c not found", drive)
 	}
 	n := uint32(len(path))
 	if n+2 > length {

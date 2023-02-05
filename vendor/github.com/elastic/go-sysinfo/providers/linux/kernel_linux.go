@@ -18,15 +18,14 @@
 package linux
 
 import (
+	"fmt"
 	"syscall"
-
-	"github.com/pkg/errors"
 )
 
 func KernelVersion() (string, error) {
 	var uname syscall.Utsname
 	if err := syscall.Uname(&uname); err != nil {
-		return "", errors.Wrap(err, "kernel version")
+		return "", fmt.Errorf("kernel version: %w", err)
 	}
 
 	data := make([]byte, 0, len(uname.Release))

@@ -15,16 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// +build amd64,cgo arm64,cgo
+//go:build amd64 || arm64
+// +build amd64 arm64
 
 package darwin
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"time"
 
 	"github.com/joeshaw/multierror"
-	"github.com/pkg/errors"
 
 	"github.com/elastic/go-sysinfo/internal/registry"
 	"github.com/elastic/go-sysinfo/providers/shared"
@@ -52,7 +54,7 @@ func (h *host) Info() types.HostInfo {
 func (h *host) CPUTime() (types.CPUTimes, error) {
 	cpu, err := getHostCPULoadInfo()
 	if err != nil {
-		return types.CPUTimes{}, errors.Wrap(err, "failed to get host CPU usage")
+		return types.CPUTimes{}, fmt.Errorf("failed to get host CPU usage: %w", err)
 	}
 
 	ticksPerSecond := time.Duration(getClockTicks())
@@ -69,26 +71,37 @@ func (h *host) Memory() (*types.HostMemoryInfo, error) {
 	var mem types.HostMemoryInfo
 
 	// Total physical memory.
-	if err := sysctlByName("hw.memsize", &mem.Total); err != nil {
-		return nil, errors.Wrap(err, "failed to get total physical memory")
+	total, err := MemTotal()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get total physical memory: %w", err)
 	}
+
+	mem.Total = total
 
 	// Page size for computing byte totals.
 	pageSizeBytes, err := getPageSize()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get page size")
-	}
-
-	// Virtual Memory Statistics
-	vmStat, err := getHostVMInfo64()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get virtual memory statistics")
+		return nil, fmt.Errorf("failed to get page size: %w", err)
 	}
 
 	// Swap
 	swap, err := getSwapUsage()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get swap usage")
+		return nil, fmt.Errorf("failed to get swap usage: %w", err)
+	}
+
+	mem.VirtualTotal = swap.Total
+	mem.VirtualUsed = swap.Used
+	mem.VirtualFree = swap.Available
+
+	// Virtual Memory Statistics
+	vmStat, err := getHostVMInfo64()
+	if errors.Is(err, types.ErrNotImplemented) {
+		return &mem, nil
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get virtual memory statistics: %w", err)
 	}
 
 	inactiveBytes := uint64(vmStat.Inactive_count) * pageSizeBytes
@@ -122,11 +135,23 @@ func (h *host) Memory() (*types.HostMemoryInfo, error) {
 	mem.Used = uint64(vmStat.Internal_page_count+vmStat.Wire_count+vmStat.Compressor_page_count) * pageSizeBytes
 	mem.Free = uint64(vmStat.Free_count) * pageSizeBytes
 	mem.Available = mem.Free + inactiveBytes + purgeableBytes
-	mem.VirtualTotal = swap.Total
-	mem.VirtualUsed = swap.Used
-	mem.VirtualFree = swap.Available
 
 	return &mem, nil
+}
+
+func (h *host) LoadAverage() (*types.LoadAverageInfo, error) {
+	load, err := getLoadAverage()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get loadavg: %w", err)
+	}
+
+	scale := float64(load.scale)
+
+	return &types.LoadAverageInfo{
+		One:     float64(load.load[0]) / scale,
+		Five:    float64(load.load[1]) / scale,
+		Fifteen: float64(load.load[2]) / scale,
+	}, nil
 }
 
 func newHost() (*host, error) {
@@ -149,7 +174,7 @@ type reader struct {
 
 func (r *reader) addErr(err error) bool {
 	if err != nil {
-		if errors.Cause(err) != types.ErrNotImplemented {
+		if !errors.Is(err, types.ErrNotImplemented) {
 			r.errs = append(r.errs, err)
 		}
 		return true

@@ -19,10 +19,9 @@ package linux
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"os"
-
-	"github.com/pkg/errors"
 
 	"github.com/elastic/go-sysinfo/types"
 )
@@ -44,7 +43,7 @@ func MachineID() (string, error) {
 			}
 
 			// Return with error on any other error
-			return "", errors.Wrapf(err, "failed to read %v", file)
+			return "", fmt.Errorf("failed to read %v: %w", file, err)
 		}
 
 		// Found it

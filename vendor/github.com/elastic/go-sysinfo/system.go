@@ -43,6 +43,7 @@ func Go() types.GoInfo {
 // Host returns information about host on which this process is running. If
 // host information collection is not implemented for this platform then
 // types.ErrNotImplemented is returned.
+// On Darwin (macOS) a types.ErrNotImplemented is returned with cgo disabled.
 func Host() (types.Host, error) {
 	provider := registry.GetHostProvider()
 	if provider == nil {

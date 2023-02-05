@@ -1,6 +1,7 @@
 package webgo
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"strings"
@@ -26,7 +27,8 @@ type Route struct {
 	Handlers []http.HandlerFunc
 
 	hasWildcard bool
-	parts       []routePart
+	fragments   []uriFragment
+	paramsCount int
 
 	// skipMiddleware if true, middleware added using `router` will not be applied to this Route.
 	// This is used only when a Route is set using the RouteGroup, which can have its own set of middleware
@@ -36,11 +38,11 @@ type Route struct {
 
 	serve http.HandlerFunc
 }
-type routePart struct {
+type uriFragment struct {
 	isVariable  bool
 	hasWildcard bool
-	// part will be the key name, if it's a variable/named URI parameter
-	part string
+	// fragment will be the key name, if it's a variable/named URI parameter
+	fragment string
 }
 
 func (r *Route) parseURIWithParams() {
@@ -49,35 +51,36 @@ func (r *Route) parseURIWithParams() {
 		return
 	}
 
-	parts := strings.Split(r.Pattern, "/")
-	if len(parts) == 1 {
+	fragments := strings.Split(r.Pattern, "/")
+	if len(fragments) == 1 {
 		return
 	}
 
-	rparts := make([]routePart, 0, len(parts))
-	for _, part := range parts[1:] {
+	rFragments := make([]uriFragment, 0, len(fragments))
+	for _, fragment := range fragments[1:] {
 		hasParam := false
 		hasWildcard := false
 
-		if strings.Contains(part, ":") {
+		if strings.Contains(fragment, ":") {
 			hasParam = true
+			r.paramsCount++
 		}
-		if strings.Contains(part, "*") {
+		if strings.Contains(fragment, "*") {
 			r.hasWildcard = true
 			hasWildcard = true
 		}
 
-		key := strings.ReplaceAll(part, ":", "")
+		key := strings.ReplaceAll(fragment, ":", "")
 		key = strings.ReplaceAll(key, "*", "")
-		rparts = append(
-			rparts,
-			routePart{
+		rFragments = append(
+			rFragments,
+			uriFragment{
 				isVariable:  hasParam,
 				hasWildcard: hasWildcard,
-				part:        key,
+				fragment:    key,
 			})
 	}
-	r.parts = rparts
+	r.fragments = rFragments
 }
 
 // init prepares the URIKeys, compile regex for the provided pattern
@@ -92,18 +95,18 @@ func (r *Route) init() error {
 	return nil
 }
 
-// matchPath matches the requestURI with the URI pattern of the route.
-// If the path is an exact match (i.e. no URI parameters), then the second parameter ('isExactMatch') is true
+// matchPath matches the requestURI with the URI pattern of the route
 func (r *Route) matchPath(requestURI string) (bool, map[string]string) {
-	p := r.Pattern
+	p := bytes.NewBufferString(r.Pattern)
 	if r.TrailingSlash {
-		p += "/"
+		p.WriteString("/")
 	} else {
 		if requestURI[len(requestURI)-1] == '/' {
 			return false, nil
 		}
 	}
-	if r.Pattern == requestURI || p == requestURI {
+
+	if r.Pattern == requestURI || p.String() == requestURI {
 		return true, nil
 	}
 
@@ -111,52 +114,62 @@ func (r *Route) matchPath(requestURI string) (bool, map[string]string) {
 }
 
 func (r *Route) matchWithWildcard(requestURI string) (bool, map[string]string) {
-	params := map[string]string{}
-	uriParts := strings.Split(requestURI, "/")[1:]
+	// if r.fragments is empty, it means there are no variables in the URI pattern
+	// hence no point checking
+	if len(r.fragments) == 0 {
+		return false, nil
+	}
 
-	partsLastIdx := len(r.parts) - 1
-	partIdx := 0
-	paramParts := make([]string, 0, len(uriParts))
-	for idx, part := range uriParts {
+	params := make(map[string]string, r.paramsCount)
+	uriFragments := strings.Split(requestURI, "/")[1:]
+	fragmentsLastIdx := len(r.fragments) - 1
+	fragmentIdx := 0
+	uriParameter := make([]string, 0, len(uriFragments))
+
+	for idx, fragment := range uriFragments {
 		// if part is empty, it means it's end of URI with trailing slash
-		if part == "" {
+		if fragment == "" {
 			break
 		}
 
-		if partIdx > partsLastIdx {
+		if fragmentIdx > fragmentsLastIdx {
 			return false, nil
 		}
 
-		currentPart := r.parts[partIdx]
-		if !currentPart.isVariable && currentPart.part != part {
+		currentFragment := r.fragments[fragmentIdx]
+		if !currentFragment.isVariable && currentFragment.fragment != fragment {
 			return false, nil
 		}
 
-		paramParts = append(paramParts, part)
-		if currentPart.isVariable {
-			params[currentPart.part] = strings.Join(paramParts, "/")
+		uriParameter = append(uriParameter, fragment)
+		if currentFragment.isVariable {
+			params[currentFragment.fragment] = strings.Join(uriParameter, "/")
 		}
 
-		if !currentPart.hasWildcard {
-			paramParts = make([]string, 0, len(uriParts)-idx)
-			partIdx++
+		if !currentFragment.hasWildcard {
+			uriParameter = make([]string, 0, len(uriFragments)-idx)
+			fragmentIdx++
 			continue
 		}
 
-		nextIdx := partIdx + 1
-		if nextIdx > partsLastIdx {
+		nextIdx := fragmentIdx + 1
+		if nextIdx > fragmentsLastIdx {
 			continue
 		}
-		nextPart := r.parts[nextIdx]
+		nextPart := r.fragments[nextIdx]
 
-		// if the URI has more parts/params after wildcard,
+		// if the URI has more fragments/params after wildcard,
 		// the immediately following part after wildcard cannot be a variable or another wildcard.
-		if !nextPart.isVariable && nextPart.part == part {
+		if !nextPart.isVariable && nextPart.fragment == fragment {
 			// remove the last added 'part' from parameters, as it's part of the static URI
-			params[currentPart.part] = strings.Join(paramParts[:len(paramParts)-1], "/")
-			paramParts = make([]string, 0, len(uriParts)-idx)
-			partIdx += 2
+			params[currentFragment.fragment] = strings.Join(uriParameter[:len(uriParameter)-1], "/")
+			uriParameter = make([]string, 0, len(uriFragments)-idx)
+			fragmentIdx += 2
 		}
+	}
+
+	if len(params) != r.paramsCount {
+		return false, nil
 	}
 
 	return true, params

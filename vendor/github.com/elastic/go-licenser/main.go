@@ -216,7 +216,7 @@ func walk(p, ext, license string, headerBytes []byte, exclude []string, dry bool
 		}
 
 		var currentPath = cleanPathPrefixes(
-			strings.Replace(path, p, "", 1),
+			strings.TrimLeft(path, p),
 			[]string{string(os.PathSeparator)},
 		)
 

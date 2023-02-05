@@ -59,7 +59,7 @@ func Send(w http.ResponseWriter, contentType string, data interface{}, rCode int
 	_, err := fmt.Fprint(w, data)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(ErrInternalServer))
+		_, _ = w.Write([]byte(ErrInternalServer))
 		LOGHANDLER.Error(err)
 	}
 }

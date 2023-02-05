@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/bnkamalesh/errors"
-	"github.com/gomodule/redigo/redis"
-	"github.com/jackc/pgx/v4/pgxpool"
 
 	"github.com/bnkamalesh/goapp/internal/pkg/cachestore"
 	"github.com/bnkamalesh/goapp/internal/pkg/logger"
@@ -65,6 +63,15 @@ func validateEmail(email string) error {
 	return nil
 }
 
+type userCachestore interface {
+	SetUser(ctx context.Context, email string, u *User) error
+	ReadUserByEmail(ctx context.Context, email string) (*User, error)
+}
+type store interface {
+	Create(ctx context.Context, u *User) error
+	ReadByEmail(ctx context.Context, email string) (*User, error)
+}
+
 // Users struct holds all the dependencies required for the users package. And exposes all services
 // provided by this package as its methods
 type Users struct {
@@ -105,7 +112,7 @@ func (us *Users) ReadByEmail(ctx context.Context, email string) (*User, error) {
 		!errors.Is(err, cachestore.ErrCacheNotInitialized) {
 		// caches are usually read-through, i.e. in case of error, just log and continue to fetch from
 		// primary datastore
-		us.logHandler.Error(err.Error())
+		_ = us.logHandler.Error(err.Error())
 	} else if err == nil {
 		return u, nil
 	}
@@ -119,7 +126,7 @@ func (us *Users) ReadByEmail(ctx context.Context, email string) (*User, error) {
 	if err != nil {
 		// in case of error while storing in cache, it is only logged
 		// This behaviour as well as read-through cache behaviour depends on your business logic.
-		us.logHandler.Error(err.Error())
+		_ = us.logHandler.Error(err.Error())
 	}
 
 	return u, nil
@@ -127,20 +134,14 @@ func (us *Users) ReadByEmail(ctx context.Context, email string) (*User, error) {
 
 // NewService initializes the Users struct with all its dependencies and returns a new instance
 // all dependencies of Users should be sent as arguments of NewService
-func NewService(l logger.Logger, pqdriver *pgxpool.Pool, redispool *redis.Pool) (*Users, error) {
-	ustore, err := newStore(pqdriver)
-	if err != nil {
-		return nil, err
-	}
-
-	cstore, err := newCacheStore(redispool)
-	if err != nil {
-		return nil, err
-	}
-
+func NewService(
+	l logger.Logger,
+	persistenceStore store,
+	cacheStore userCachestore,
+) (*Users, error) {
 	return &Users{
 		logHandler: l,
-		cachestore: cstore,
-		store:      ustore,
+		cachestore: cacheStore,
+		store:      persistenceStore,
 	}, nil
 }

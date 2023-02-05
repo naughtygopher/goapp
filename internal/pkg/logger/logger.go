@@ -51,7 +51,7 @@ func (lh *LogHandler) defaultPayload(severity string) map[string]interface{} {
 func (lh *LogHandler) serialize(severity string, data ...interface{}) (string, error) {
 	payload := lh.defaultPayload(severity)
 	for idx, value := range data {
-		payload[fmt.Sprintf("%d", idx)] = value
+		payload[fmt.Sprintf("%d", idx)] = fmt.Sprintf("%+v", value)
 	}
 
 	b, err := json.Marshal(payload)
@@ -69,7 +69,7 @@ func (lh *LogHandler) log(severity string, payload ...interface{}) error {
 	}
 
 	switch severity {
-	case "fatal":
+	case LogTypeFatal:
 		{
 			fmt.Println(out)
 			os.Exit(1)

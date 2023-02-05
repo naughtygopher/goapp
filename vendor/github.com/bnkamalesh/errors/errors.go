@@ -2,6 +2,7 @@
 package errors
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -57,39 +58,65 @@ type Error struct {
 	// Message is meant to be returned as response of API, so this should be a user-friendly message
 	message string
 	// Type is used to define the type of the error, e.g. Server error, validation error etc.
-	eType    errType
-	fileLine string
-	pcs      []uintptr
+	eType errType
+	pcs   []uintptr
+	pc    uintptr
+}
+
+func (e *Error) fileLine() string {
+	if e.pc == 0 {
+		return ""
+	}
+
+	frames := runtime.CallersFrames([]uintptr{e.pc + 1})
+	frame, _ := frames.Next()
+
+	buff := bytes.NewBuffer(make([]byte, 0, 128))
+	buff.WriteString(frame.File)
+	buff.WriteString(":")
+	buff.WriteString(strconv.Itoa(frame.Line))
+
+	return buff.String()
 }
 
 // Error is the implementation of error interface
 func (e *Error) Error() string {
+	str := bytes.NewBuffer(make([]byte, 0, 128))
+	str.WriteString(e.fileLine())
+	if str.Len() != 0 {
+		str.WriteString(": ")
+	}
+
 	if e.original != nil {
-		// string concatenation with + is ~100x faster than fmt.Sprintf()
-		return e.fileLine + ": " + e.message + "\n" + e.original.Error()
+		str.WriteString(e.message)
+		str.WriteString("\n")
+		str.WriteString(e.original.Error())
+		return str.String()
 	}
 
 	if e.message != "" {
-		// string concatenation with + is ~100x faster than fmt.Sprintf()
-		return e.fileLine + ": " + e.message
+		str.WriteString(e.message)
+		return str.String()
 	}
 
-	// string concatenation with + is ~100x faster than fmt.Sprintf()
-	return e.fileLine + ": " + DefaultMessage
+	str.WriteString(DefaultMessage)
+
+	return str.String()
 }
 
 // ErrorWithoutFileLine prints the final string without the stack trace / file+line number
 func (e *Error) ErrorWithoutFileLine() string {
 	if e.original != nil {
 		if e.message != "" {
-			// string concatenation with + is ~100x faster than fmt.Sprintf()
-			msg := e.message + ": "
+			msg := bytes.NewBuffer(make([]byte, 0, 128))
+			msg.WriteString(e.message)
+			msg.WriteString(": ")
 			if o, ok := e.original.(*Error); ok {
-				msg += o.ErrorWithoutFileLine()
+				msg.WriteString(o.ErrorWithoutFileLine())
 			} else {
-				msg += e.original.Error()
+				msg.WriteString(e.original.Error())
 			}
-			return msg
+			return msg.String()
 		}
 		return e.original.Error()
 	}
@@ -98,7 +125,7 @@ func (e *Error) ErrorWithoutFileLine() string {
 		return e.message
 	}
 
-	return e.fileLine
+	return e.fileLine()
 }
 
 // Message returns the user friendly message stored in the error struct. It will ignore all errors
@@ -223,34 +250,53 @@ func (e *Error) Format(s fmt.State, verb rune) {
 }
 
 func (e *Error) RuntimeFrames() *runtime.Frames {
-	return runtime.CallersFrames(e.pcs)
+	return runtime.CallersFrames(e.ProgramCounters())
 }
 
 func (e *Error) ProgramCounters() []uintptr {
 	return e.pcs
 }
 
-func (e *Error) StackTrace() string {
-	trace := make([]string, 0, 100)
+func (e *Error) StackTrace() []string {
 	rframes := e.RuntimeFrames()
 	frame, ok := rframes.Next()
-	line := strconv.Itoa(frame.Line)
-	trace = append(trace, frame.Function+"(): "+e.message)
+	buff := bytes.NewBuffer(make([]byte, 0, 128))
+	buff.WriteString(frame.Function)
+	buff.WriteString("(): ")
+	buff.WriteString(e.message)
+
+	trace := make([]string, 0, len(e.ProgramCounters()))
+	trace = append(trace, buff.String())
 	for ok {
-		trace = append(trace, "\t"+frame.File+":"+line)
+		buff.Reset()
+		buff.WriteString("\t")
+		buff.WriteString(frame.File)
+		buff.WriteString(":")
+		buff.WriteString(strconv.Itoa(frame.Line))
+		trace = append(trace, buff.String())
 		frame, ok = rframes.Next()
 	}
-	return strings.Join(trace, "\n")
+	return trace
 }
 
 func (e *Error) StackTraceNoFormat() []string {
-	trace := make([]string, 0, 100)
 	rframes := e.RuntimeFrames()
 	frame, ok := rframes.Next()
 	line := strconv.Itoa(frame.Line)
-	trace = append(trace, frame.Function+"(): "+e.message)
+
+	buff := bytes.NewBuffer(make([]byte, 0, 128))
+	buff.WriteString(frame.Function)
+	buff.WriteString("(): ")
+	buff.WriteString(e.message)
+
+	trace := make([]string, 0, len(e.ProgramCounters()))
+	trace = append(trace, buff.String())
 	for ok {
-		trace = append(trace, frame.File+":"+line)
+		buff.Reset()
+		buff.WriteString(frame.File)
+		buff.WriteString(":")
+		buff.WriteString(line)
+		trace = append(trace, buff.String())
 		frame, ok = rframes.Next()
 	}
 	return trace
@@ -264,7 +310,7 @@ Supported directives:
 %l - line
 %f - function
 */
-func (e *Error) StackTraceCustomFormat(msgformat string, traceFormat string) string {
+func (e *Error) StackTraceCustomFormat(msgformat string, traceFormat string) []string {
 	rframes := e.RuntimeFrames()
 	frame, ok := rframes.Next()
 
@@ -272,7 +318,7 @@ func (e *Error) StackTraceCustomFormat(msgformat string, traceFormat string) str
 	message = strings.ReplaceAll(message, "%p", frame.File)
 	message = strings.ReplaceAll(message, "%l", strconv.Itoa(frame.Line))
 	message = strings.ReplaceAll(message, "%f", frame.Function)
-	traces := make([]string, 0, 100)
+	traces := make([]string, 0, len(e.ProgramCounters()))
 	traces = append(traces, message)
 
 	for ok {
@@ -285,23 +331,23 @@ func (e *Error) StackTraceCustomFormat(msgformat string, traceFormat string) str
 		frame, ok = rframes.Next()
 	}
 
-	return strings.Join(traces, "")
+	return traces
 }
 
 // New returns a new instance of Error with the relavant fields initialized
 func New(msg string) *Error {
-	return newerr(nil, msg, defaultErrType)
+	return newerr(nil, msg, defaultErrType, 3)
 }
 
 func Newf(fromat string, args ...interface{}) *Error {
-	return newerrf(nil, defaultErrType, fromat, args...)
+	return newerrf(nil, defaultErrType, 4, fromat, args...)
 }
 
 // Errorf is a convenience method to create a new instance of Error with formatted message
 // Important: %w directive is not supported, use fmt.Errorf if you're using the %w directive or
 // use Wrap/Wrapf to wrap an error.
 func Errorf(fromat string, args ...interface{}) *Error {
-	return Newf(fromat, args...)
+	return newerrf(nil, defaultErrType, 4, fromat, args...)
 }
 
 // SetDefaultType will set the default error type, which is used in the 'New' function
@@ -311,33 +357,73 @@ func SetDefaultType(e errType) {
 
 // Stacktrace returns a string representation of the stacktrace, where each trace is separated by a newline and tab '\t'
 func Stacktrace(err error) string {
-	trace := make([]string, 0, 100)
+	trace := make([][]string, 0, 128)
 	for err != nil {
 		e, ok := err.(*Error)
 		if ok {
 			trace = append(trace, e.StackTrace())
 		} else {
-			trace = append(trace, err.Error())
+			trace = append(trace, []string{err.Error()})
 		}
 		err = Unwrap(err)
 	}
-	return strings.Join(trace, "\n")
+
+	lookup := map[string]struct{}{}
+	for idx := len(trace) - 1; idx >= 0; idx-- {
+		list := trace[idx]
+		uniqueList := make([]string, 0, len(list))
+		for _, line := range list {
+			_, ok := lookup[line]
+			if ok {
+				break
+			}
+			uniqueList = append(uniqueList, line)
+			lookup[line] = struct{}{}
+		}
+		trace[idx] = uniqueList
+	}
+	final := make([]string, 0, len(trace)*3)
+	for _, list := range trace {
+		final = append(final, list...)
+	}
+
+	return strings.Join(final, "\n")
 }
 
 // Stacktrace returns a string representation of the stacktrace, as a slice of string where each
 // element represents the error message and traces.
 func StacktraceNoFormat(err error) []string {
-	trace := make([]string, 0, 100)
+	trace := make([][]string, 0, 128)
 	for err != nil {
 		e, ok := err.(*Error)
 		if ok {
-			trace = append(trace, e.StackTraceNoFormat()...)
+			trace = append(trace, e.StackTraceNoFormat())
 		} else {
-			trace = append(trace, err.Error())
+			trace = append(trace, []string{err.Error()})
 		}
 		err = Unwrap(err)
 	}
-	return trace
+
+	lookup := map[string]struct{}{}
+	for idx := len(trace) - 1; idx >= 0; idx-- {
+		list := trace[idx]
+		uniqueList := make([]string, 0, len(list))
+		for _, line := range list {
+			_, ok := lookup[line]
+			if ok {
+				break
+			}
+			uniqueList = append(uniqueList, line)
+			lookup[line] = struct{}{}
+		}
+		trace[idx] = uniqueList
+	}
+	final := make([]string, 0, len(trace)*3)
+	for _, list := range trace {
+		final = append(final, list...)
+	}
+
+	return final
 }
 
 // StacktraceCustomFormat lets you prepare a stacktrace in a custom format
@@ -351,7 +437,7 @@ Supported directives:
 %f - function, empty if type is not *Error
 */
 func StacktraceCustomFormat(msgformat string, traceFormat string, err error) string {
-	trace := make([]string, 0, 100)
+	trace := make([][]string, 0, 128)
 	for err != nil {
 		e, ok := err.(*Error)
 		if ok {
@@ -361,30 +447,82 @@ func StacktraceCustomFormat(msgformat string, traceFormat string, err error) str
 			message = strings.ReplaceAll(message, "%p", "")
 			message = strings.ReplaceAll(message, "%l", "")
 			message = strings.ReplaceAll(message, "%f", "")
-
-			trace = append(
-				trace,
-				message,
-			)
+			trace = append(trace, []string{message})
 		}
 		err = Unwrap(err)
 	}
-	return strings.Join(trace, "")
+
+	lookup := map[string]struct{}{}
+	for idx := len(trace) - 1; idx >= 0; idx-- {
+		list := trace[idx]
+		uniqueList := make([]string, 0, len(list))
+		for _, line := range list {
+			_, ok := lookup[line]
+			if ok {
+				break
+			}
+			uniqueList = append(uniqueList, line)
+			lookup[line] = struct{}{}
+		}
+		trace[idx] = uniqueList
+	}
+
+	final := make([]string, 0, len(trace)*3)
+	for _, list := range trace {
+		final = append(final, list...)
+	}
+
+	return strings.Join(final, "")
 }
 
 func ProgramCounters(err error) []uintptr {
-	pcs := make([]uintptr, 0, 100)
+	pcs := make([][]uintptr, 0, 128)
 	for err != nil {
 		e, ok := err.(*Error)
 		if ok {
-			pcs = append(pcs, e.ProgramCounters()...)
+			pcs = append(pcs, e.ProgramCounters())
 		}
 		err = Unwrap(err)
 	}
-	return pcs
+
+	lookup := map[uintptr]struct{}{}
+	for idx := len(pcs) - 1; idx >= 0; idx-- {
+		list := pcs[idx]
+		uniqueList := make([]uintptr, 0, len(list))
+		for _, line := range list {
+			_, ok := lookup[line]
+			if ok {
+				break
+			}
+			uniqueList = append(uniqueList, line)
+			lookup[line] = struct{}{}
+		}
+		pcs[idx] = uniqueList
+	}
+	final := make([]uintptr, 0, len(pcs)*3)
+	for _, list := range pcs {
+		final = append(final, list...)
+	}
+	return final
 }
 
 func RuntimeFrames(err error) *runtime.Frames {
 	pcs := ProgramCounters(err)
 	return runtime.CallersFrames(pcs)
+}
+
+func StacktraceFromPcs(err error) string {
+	pcs := ProgramCounters(err)
+	frames := runtime.CallersFrames(pcs)
+	frame, hasMore := frames.Next()
+	lines := make([]string, 0, len(pcs))
+	if !hasMore {
+		lines = append(lines, frame.File+":"+strconv.Itoa(frame.Line)+":"+frame.Function+"()")
+	}
+	for hasMore {
+		lines = append(lines, frame.File+":"+strconv.Itoa(frame.Line)+":"+frame.Function+"()")
+		frame, hasMore = frames.Next()
+	}
+
+	return strings.Join(lines, "\n")
 }

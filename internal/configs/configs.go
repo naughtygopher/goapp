@@ -28,7 +28,7 @@ func (cfg *Configs) HTTP() (*http.Config, error) {
 // Datastore returns datastore configuration
 func (cfg *Configs) Datastore() (*datastore.Config, error) {
 	return &datastore.Config{
-		Host:   "localhost",
+		Host:   "postgres",
 		Port:   "5432",
 		Driver: "postgres",
 
@@ -49,12 +49,12 @@ func (cfg *Configs) Datastore() (*datastore.Config, error) {
 // Cachestore returns the configuration required for cache
 func (cfg *Configs) Cachestore() (*cachestore.Config, error) {
 	return &cachestore.Config{
-		Host: "",
-		Port: "6379",
+		Host: "redis",
+		Port: 6379,
 
-		StoreName: "0",
-		Username:  "",
-		Password:  "",
+		DB:       0,
+		Username: "",
+		Password: "",
 
 		PoolSize:     8,
 		IdleTimeout:  time.Second * 5,
@@ -64,7 +64,7 @@ func (cfg *Configs) Cachestore() (*cachestore.Config, error) {
 	}, nil
 }
 
-// NewService returns an instance of Config with all the required dependencies initialized
-func NewService() (*Configs, error) {
+// New returns an instance of Config with all the required dependencies initialized
+func New() (*Configs, error) {
 	return &Configs{}, nil
 }

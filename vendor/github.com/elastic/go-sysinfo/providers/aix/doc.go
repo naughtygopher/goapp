@@ -16,5 +16,5 @@
 // under the License.
 
 // Package aix implements the HostProvider and ProcessProvider interfaces
-// for providing information about MacOS.
+// for providing information about IBM AIX on ppc64.
 package aix

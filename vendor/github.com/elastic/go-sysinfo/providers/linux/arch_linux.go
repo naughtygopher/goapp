@@ -18,15 +18,14 @@
 package linux
 
 import (
+	"fmt"
 	"syscall"
-
-	"github.com/pkg/errors"
 )
 
 func Architecture() (string, error) {
 	var uname syscall.Utsname
 	if err := syscall.Uname(&uname); err != nil {
-		return "", errors.Wrap(err, "architecture")
+		return "", fmt.Errorf("architecture: %w", err)
 	}
 
 	data := make([]byte, 0, len(uname.Machine))

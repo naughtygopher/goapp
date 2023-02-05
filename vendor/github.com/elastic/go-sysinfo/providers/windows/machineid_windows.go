@@ -18,7 +18,8 @@
 package windows
 
 import (
-	"github.com/pkg/errors"
+	"fmt"
+
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -33,13 +34,13 @@ func getMachineGUID() (string, error) {
 
 	k, err := registry.OpenKey(key, path, registry.READ|registry.WOW64_64KEY)
 	if err != nil {
-		return "", errors.Wrapf(err, `failed to open HKLM\%v`, path)
+		return "", fmt.Errorf(`failed to open HKLM\%v: %w`, path, err)
 	}
 	defer k.Close()
 
 	guid, _, err := k.GetStringValue(name)
 	if err != nil {
-		return "", errors.Wrapf(err, `failed to get value of HKLM\%v\%v`, path, name)
+		return "", fmt.Errorf(`failed to get value of HKLM\%v\%v: %w`, path, name, err)
 	}
 
 	return guid, nil

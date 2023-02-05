@@ -18,11 +18,11 @@
 package darwin
 
 import (
+	"fmt"
 	"io/ioutil"
 	"strconv"
 	"strings"
 
-	"github.com/pkg/errors"
 	"howett.net/plist"
 
 	"github.com/elastic/go-sysinfo/types"
@@ -39,7 +39,7 @@ const (
 func OperatingSystem() (*types.OSInfo, error) {
 	data, err := ioutil.ReadFile(systemVersionPlist)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read plist file")
+		return nil, fmt.Errorf("failed to read plist file: %w", err)
 	}
 
 	return getOSInfo(data)
@@ -48,22 +48,22 @@ func OperatingSystem() (*types.OSInfo, error) {
 func getOSInfo(data []byte) (*types.OSInfo, error) {
 	attrs := map[string]string{}
 	if _, err := plist.Unmarshal(data, &attrs); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal plist data")
+		return nil, fmt.Errorf("failed to unmarshal plist data: %w", err)
 	}
 
 	productName, found := attrs[plistProductName]
 	if !found {
-		return nil, errors.Errorf("plist key %v not found", plistProductName)
+		return nil, fmt.Errorf("plist key %v not found", plistProductName)
 	}
 
 	version, found := attrs[plistProductVersion]
 	if !found {
-		return nil, errors.Errorf("plist key %v not found", plistProductVersion)
+		return nil, fmt.Errorf("plist key %v not found", plistProductVersion)
 	}
 
 	build, found := attrs[plistProductBuildVersion]
 	if !found {
-		return nil, errors.Errorf("plist key %v not found", plistProductBuildVersion)
+		return nil, fmt.Errorf("plist key %v not found", plistProductBuildVersion)
 	}
 
 	var major, minor, patch int
