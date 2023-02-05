@@ -44,7 +44,7 @@ func main() {
 	if err != nil {
 		// Cache could be something we'd be willing to tolerate if not available.
 		// Though this is strictly based on how critical cache is to your application
-		l.Error(fmt.Sprintf("%+v", err))
+		_ = logger.Error(fmt.Sprintf("%+v", err))
 	}
 
 	userStore, err := users.NewStore(pqdriver)
