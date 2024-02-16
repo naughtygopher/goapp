@@ -10,8 +10,9 @@ import (
 type User struct {
 	ID      string
 	Name    string
-	Address string
+	Email   string
 	Phone   string
+	Address string
 }
 
 // ValidateForCreate runs the validation required for when a user is being created. i.e. ID is not available
@@ -20,8 +21,8 @@ func (us *User) ValidateForCreate() error {
 		return errors.Validation("name cannot be empty")
 	}
 
-	if us.Phone == "" {
-		return errors.Validation("phone number cannot be empty")
+	if us.Email == "" {
+		return errors.Validation("email cannot be empty")
 	}
 
 	return nil
