@@ -22,10 +22,10 @@ type pgstore struct {
 func (ps *pgstore) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	query, args, err := ps.qbuilder.Select(
 		"id",
-		"name",
+		"uname",
 		"email",
 		"phone",
-		"address",
+		"uaddress",
 	).From(
 		ps.tableName,
 	).Where(
@@ -56,10 +56,10 @@ func (ps *pgstore) SaveUser(ctx context.Context, user *User) (string, error) {
 		ps.tableName,
 	).Columns(
 		"id",
-		"name",
+		"uname",
 		"email",
 		"phone",
-		"address",
+		"uaddress",
 	).Values(
 		user.ID,
 		user.Name,
@@ -106,7 +106,7 @@ func (ps *pgstore) BulkSaveUser(ctx context.Context, users []User) error {
 	inserted, err := ps.pqdriver.CopyFrom(
 		ctx,
 		pgx.Identifier{ps.tableName},
-		[]string{"id", "name", "email", "phone", "address"},
+		[]string{"id", "uname", "email", "phone", "uaddress"},
 		pgx.CopyFromRows(rows),
 	)
 	if err != nil {

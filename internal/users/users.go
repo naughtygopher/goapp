@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/bnkamalesh/errors"
+	"github.com/bnkamalesh/goapp/internal/pkg/logger"
 )
 
 type User struct {
@@ -81,7 +82,15 @@ func (us *Users) AsyncCreateUsers(ctx context.Context, users []User) error {
 		return errors.Join(errList...)
 	}
 
-	return us.store.BulkSaveUser(ctx, users)
+	go func() {
+		ctx := context.TODO()
+		err := us.store.BulkSaveUser(context.TODO(), users)
+		if err != nil {
+			logger.Error(ctx, err, users)
+		}
+	}()
+
+	return nil
 }
 
 func NewService(store store) *Users {
