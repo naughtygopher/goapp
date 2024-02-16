@@ -15,12 +15,12 @@ services:
       - goapp_network
 
   goapp:
-    image: golang:1.20
+    image: golang:1.21
     volumes:
       - ${PWD}:/app
     working_dir: /app
-    # command: go run main.go
     tty: true
+    # command: go run main.go
     ports:
       - "8080:8080"
     depends_on:

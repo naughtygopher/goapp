@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"time"
 
 	"github.com/bnkamalesh/goapp/internal/users"
@@ -10,14 +11,25 @@ var (
 	now = time.Now()
 )
 
-// API holds all the dependencies required to expose APIs. And each API is a function with *API as its receiver
+// Server has all the methods required to run the server
+type Server interface {
+	CreateUser(ctx context.Context, user *users.User) (*users.User, error)
+	ReadUserByEmail(ctx context.Context, email string) (*users.User, error)
+	ServerHealth() (map[string]any, error)
+}
+
+// Subscriber has all the methods required to run the subscriber
+type Subscriber interface {
+	AsyncCreateUsers(ctcx context.Context, users []users.User) error
+}
+
 type API struct {
 	users *users.Users
 }
 
-// Health returns the health of the app along with other info like version
-func (a *API) Health() (map[string]interface{}, error) {
-	return map[string]interface{}{
+// ServerHealth returns the health of the serever app along with other info like version
+func (a *API) ServerHealth() (map[string]any, error) {
+	return map[string]any{
 		"env":        "testing",
 		"version":    "v0.1.0",
 		"commit":     "<git commit hash>",
@@ -28,9 +40,18 @@ func (a *API) Health() (map[string]interface{}, error) {
 
 }
 
-// NewService returns a new instance of API with all the dependencies initialized
-func NewService(us *users.Users) (*API, error) {
+func New(us *users.Users) *API {
 	return &API{
 		users: us,
-	}, nil
+	}
+}
+
+func NewServer(us *users.Users) Server {
+	return &API{
+		users: us,
+	}
+}
+
+func NewSubscriber() Subscriber {
+	return &API{}
 }

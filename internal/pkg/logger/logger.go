@@ -4,6 +4,7 @@
 package logger
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -24,10 +25,10 @@ const (
 
 // Logger interface defines all the logging methods to be implemented
 type Logger interface {
-	Info(payload ...interface{}) error
-	Warn(payload ...interface{}) error
-	Error(payload ...interface{}) error
-	Fatal(payload ...interface{}) error
+	Info(ctx context.Context, payload ...interface{}) error
+	Warn(ctx context.Context, payload ...interface{}) error
+	Error(ctx context.Context, payload ...interface{}) error
+	Fatal(ctx context.Context, payload ...interface{}) error
 }
 
 // LogHandler implements Logger
