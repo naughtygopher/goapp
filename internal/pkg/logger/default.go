@@ -2,7 +2,7 @@ package logger
 
 import "context"
 
-var defaultLogger = New("", "", 0)
+var defaultLogger = New("", "", 0, nil)
 
 // Info is for logging items with severity 'info'
 func Info(ctx context.Context, payload ...interface{}) error {

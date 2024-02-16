@@ -116,11 +116,18 @@ func main() {
 	ctx := context.Background()
 	defer recoverer(ctx)
 	fatalErr := make(chan error, 1)
-
 	cfgs, err := configs.New()
 	if err != nil {
 		panic(errors.Wrap(err))
 	}
+	logger.UpdateDefaultLogger(logger.New(
+		cfgs.AppName,
+		cfgs.AppVersion,
+		0,
+		map[string]string{
+			"env": cfgs.Environment.String(),
+		}),
+	)
 
 	apmhandler := startAPM(ctx, cfgs)
 

@@ -39,7 +39,26 @@ func (cfg *Configs) HTTP() (*http.Config, error) {
 	}, nil
 }
 
+func loadEnv() env {
+	switch env(os.Getenv("ENV")) {
+	case EnvLocal:
+		return EnvLocal
+	case EnvTest:
+		return EnvTest
+	case EnvStaging:
+		return EnvProduction
+	case EnvProduction:
+		return EnvProduction
+	default:
+		return EnvLocal
+	}
+}
+
 // New returns an instance of Config with all the required dependencies initialized
 func New() (*Configs, error) {
-	return &Configs{}, nil
+	return &Configs{
+		Environment: loadEnv(),
+		AppName:     os.Getenv("APP_NAME"),
+		AppVersion:  os.Getenv("APP_VERSION"),
+	}, nil
 }

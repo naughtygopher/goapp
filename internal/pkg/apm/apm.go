@@ -32,8 +32,7 @@ type APM struct {
 
 // global apm instance, to simplify code/minimize injections
 var (
-	global        *APM
-	isGlobalEmpty = true
+	global *APM
 )
 
 // Options used for apm initialization
@@ -135,32 +134,13 @@ func (s *APM) AppMeter() *Meter {
 
 // SetGlobal sets global apm instance
 func SetGlobal(apm *APM) {
-	/*
-		when we invoke apm.Global() before we initialize the apm package, Global returns a valid instance
-		with empty config. But when we initialize with apm.New(), the earlier returned instance of Global()
-		becomes stale.
-
-		Following implementation would make use of apm.Global() safe from order of execution.
-		As of now, it's happening in packages like Redis, Mongo, Kafka etc. But in all these cases,
-		we call Traceprovider/Metricprovider which when there's nothing initialized returns a no-op provider.
-		And the provider is not updated when we do apm initialize.
-		TODO: we should be able to update the trace & metric providers even with an out of order initialization
-	*/
-
-	if global == nil {
-		global = apm
-	} else if isGlobalEmpty {
-		// if isGlobalEmpty is not used, global would be replaced every time New is called
-		*global = *apm
-	}
-
-	isGlobalEmpty = false
+	global = apm
 }
 
 // Global gets global apm instance
 func Global() *APM {
 	if global == nil {
-		apm, _ := New(context.Background(), &Options{})
+		apm, _ := New(context.Background(), &Options{UseStdOut: false})
 		global = apm
 		return apm
 	}
@@ -186,7 +166,7 @@ func newMeter(opts *Options) (metric.MeterProvider, *Meter, error) {
 		}
 		mReader = pexp
 		// uncomment below to start prometheusScraper if required
-		// go prometheusScraper(opts)
+		go prometheusScraper(opts)
 	}
 
 	return NewMeter(
@@ -200,16 +180,10 @@ func newMeter(opts *Options) (metric.MeterProvider, *Meter, error) {
 
 func newTracer(ctx context.Context, opts *Options) (trace.TracerProvider, *Tracer, error) {
 	var (
-		exporter sdktrace.SpanExporter
-		err      error
-	)
-
-	httpCollector := false
-	if opts.CollectorURL == "" {
-		opts.UseStdOut = true
-	} else {
+		exporter      sdktrace.SpanExporter
+		err           error
 		httpCollector = strings.HasPrefix(opts.CollectorURL, "http")
-	}
+	)
 
 	if opts.UseStdOut {
 		exporter, err = stdouttrace.New()
