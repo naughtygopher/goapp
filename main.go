@@ -16,6 +16,7 @@ import (
 	"github.com/bnkamalesh/goapp/internal/pkg/apm"
 	"github.com/bnkamalesh/goapp/internal/pkg/logger"
 	"github.com/bnkamalesh/goapp/internal/pkg/sysignals"
+	"github.com/bnkamalesh/goapp/internal/users"
 )
 
 // recoverer is used for panic recovery of the application (note: this is not for the HTTP/gRPC servers).
@@ -131,7 +132,9 @@ func main() {
 
 	apmhandler := startAPM(ctx, cfgs)
 
-	svrAPIs := api.NewServer(nil)
+	userPGstore := users.NewPostgresStore(nil, "")
+	userSvc := users.NewService(userPGstore)
+	svrAPIs := api.NewServer(userSvc)
 	hserver, gserver := startServers(svrAPIs, cfgs)
 
 	defer shutdown(

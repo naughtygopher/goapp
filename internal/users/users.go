@@ -83,3 +83,9 @@ func (us *Users) AsyncCreateUsers(ctx context.Context, users []User) error {
 
 	return us.store.BulkSaveUser(ctx, users)
 }
+
+func NewService(store store) *Users {
+	return &Users{
+		store: store,
+	}
+}
