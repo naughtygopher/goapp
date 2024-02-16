@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/bnkamalesh/errors"
 
 	"github.com/bnkamalesh/goapp/cmd/server/grpc"
 	"github.com/bnkamalesh/goapp/cmd/server/http"
@@ -21,8 +22,7 @@ import (
 // So that even if the main function panics we can produce required logs for troubleshooting
 var exitErr error
 
-func recoverer() {
-	ctx := context.Background()
+func recoverer(ctx context.Context) {
 	exitCode := 0
 	var exitInfo any
 	rec := recover()
@@ -82,29 +82,55 @@ func shutdown(
 	wgroup.Wait()
 }
 
+func startAPM(ctx context.Context, cfg *configs.Configs) *apm.APM {
+	ap, err := apm.New(ctx, &apm.Options{
+		Debug:            cfg.Environment == configs.EnvLocal,
+		Environment:      cfg.Environment.String(),
+		ServiceName:      cfg.AppName,
+		ServiceVersion:   cfg.AppVersion,
+		TracesSampleRate: 100.00,
+		UseStdOut:        cfg.Environment == configs.EnvLocal,
+	})
+	if err != nil {
+		panic(errors.Wrap(err, "failed to start APM"))
+	}
+	return ap
+}
+
+func startServers(svr api.Server, cfgs *configs.Configs) (*http.HTTP, *grpc.GRPC) {
+	hcfg, _ := cfgs.HTTP()
+	hserver, err := http.NewService(hcfg, svr)
+	if err != nil {
+		panic(errors.Wrap(err, "failed to initialize HTTP server"))
+	}
+
+	err = hserver.Start()
+	if err != nil {
+		panic(errors.Wrap(err, "failed to start HTTP server"))
+	}
+
+	return hserver, nil
+}
+
 func main() {
-	defer recoverer()
 	ctx := context.Background()
-	_ = ctx
+	defer recoverer(ctx)
 	fatalErr := make(chan error, 1)
 
 	cfgs, err := configs.New()
 	if err != nil {
-		panic(err)
+		panic(errors.Wrap(err))
 	}
 
+	apmhandler := startAPM(ctx, cfgs)
+
 	svrAPIs := api.NewServer(nil)
-	hcfg, _ := cfgs.HTTP()
-	hserver, err := http.NewService(hcfg, svrAPIs)
-	if err != nil {
-		panic(err)
-	}
-	_ = hserver.Start()
+	hserver, gserver := startServers(svrAPIs, cfgs)
 
 	defer shutdown(
 		hserver,
-		nil,
-		nil,
+		gserver,
+		apmhandler,
 	)
 
 	exitErr = <-fatalErr
