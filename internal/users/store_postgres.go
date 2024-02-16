@@ -1,14 +1,12 @@
 package users
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/bnkamalesh/errors"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -50,7 +48,7 @@ func (ps *pgstore) GetUserByEmail(ctx context.Context, email string) (*User, err
 }
 
 func (ps *pgstore) SaveUser(ctx context.Context, user *User) (string, error) {
-	user.ID = ps.newUserID(user.Name, user.Email)
+	user.ID = ps.newUserID()
 
 	query, args, err := ps.qbuilder.Insert(
 		ps.tableName,
@@ -125,10 +123,8 @@ func (ps *pgstore) BulkSaveUser(ctx context.Context, users []User) error {
 	return nil
 }
 
-func (ps *pgstore) newUserID(name, email string) string {
-	b := bytes.NewBufferString(name + email)
-	chksum := sha256.Sum224(b.Bytes())
-	return hex.EncodeToString(chksum[:])
+func (ps *pgstore) newUserID() string {
+	return uuid.NewString()
 }
 
 func NewPostgresStore(pqdriver *pgxpool.Pool, tablename string) *pgstore {
