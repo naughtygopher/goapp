@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/bnkamalesh/goapp/cmd/server/http"
+	"github.com/bnkamalesh/goapp/internal/pkg/postgres"
 )
 
 type env string
@@ -31,12 +32,39 @@ type Configs struct {
 // HTTP returns the configuration required for HTTP package
 func (cfg *Configs) HTTP() (*http.Config, error) {
 	return &http.Config{
+		EnableAccessLog:   (cfg.Environment == EnvLocal) || (cfg.Environment == EnvTest),
 		TemplatesBasePath: strings.TrimSpace(os.Getenv("TEMPLATES_BASEPATH")),
 		Port:              8080,
 		ReadTimeout:       time.Second * 5,
 		WriteTimeout:      time.Second * 5,
 		DialTimeout:       time.Second * 3,
 	}, nil
+}
+
+func (cfg *Configs) Postgres() *postgres.Config {
+	return &postgres.Config{
+		Host:   os.Getenv("POSTGRES_HOST"),
+		Port:   os.Getenv("POSTGRES_PORT"),
+		Driver: "postgres",
+
+		StoreName: os.Getenv("POSTGRES_STORENAME"),
+		Username:  os.Getenv("POSTGRES_USERNAME"),
+		Password:  os.Getenv("POSTGRES_PASSWORD"),
+
+		ConnPoolSize: 24,
+		ReadTimeout:  time.Second * 3,
+		WriteTimeout: time.Second * 6,
+		IdleTimeout:  time.Minute,
+		DialTimeout:  time.Second * 3,
+	}
+}
+
+func (cfg *Configs) UserPostgresTable() string {
+	return "users"
+}
+
+func (cfg *Configs) UserNotesPostgresTable() string {
+	return "user_notes"
 }
 
 func loadEnv() env {

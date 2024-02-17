@@ -15,6 +15,7 @@ import (
 	"github.com/bnkamalesh/goapp/internal/configs"
 	"github.com/bnkamalesh/goapp/internal/pkg/apm"
 	"github.com/bnkamalesh/goapp/internal/pkg/logger"
+	"github.com/bnkamalesh/goapp/internal/pkg/postgres"
 	"github.com/bnkamalesh/goapp/internal/pkg/sysignals"
 	"github.com/bnkamalesh/goapp/internal/users"
 )
@@ -131,8 +132,12 @@ func main() {
 	)
 
 	apmhandler := startAPM(ctx, cfgs)
+	pqdriver, err := postgres.NewPool(cfgs.Postgres())
+	if err != nil {
+		panic(errors.Wrap(err))
+	}
 
-	userPGstore := users.NewPostgresStore(nil, "")
+	userPGstore := users.NewPostgresStore(pqdriver, cfgs.UserPostgresTable())
 	userSvc := users.NewService(userPGstore)
 	svrAPIs := api.NewServer(userSvc)
 	hserver, gserver := startServers(svrAPIs, cfgs)

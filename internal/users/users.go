@@ -8,6 +8,10 @@ import (
 	"github.com/bnkamalesh/goapp/internal/pkg/logger"
 )
 
+var (
+	ErrUserEmailNotFound = errors.New("user with the email not found")
+)
+
 type User struct {
 	ID      string
 	Name    string

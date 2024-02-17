@@ -9,8 +9,8 @@ import (
 
 	"github.com/bnkamalesh/goapp/internal/api"
 	"github.com/bnkamalesh/goapp/internal/pkg/apm"
-	"github.com/bnkamalesh/webgo/v6"
-	"github.com/bnkamalesh/webgo/v6/middleware/accesslog"
+	"github.com/bnkamalesh/webgo/v7"
+	"github.com/bnkamalesh/webgo/v7/middleware/accesslog"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -24,18 +24,18 @@ type Config struct {
 	DialTimeout  time.Duration
 
 	TemplatesBasePath string
+	EnableAccessLog   bool
 }
 
 type HTTP struct {
-	apis     api.Server
 	listener string
-	server   *http.Server
+	server   *webgo.Router
 }
 
 // Start starts the HTTP server
 func (h *HTTP) Start() error {
-	webgo.LOGHANDLER.Info("HTTP server, listening on", h.listener)
-	return h.server.ListenAndServe()
+	h.server.Start()
+	return nil
 }
 
 // NewService returns an instance of HTTP with all its dependencies set
@@ -61,7 +61,10 @@ func NewService(cfg *Config, apis api.Server) (*HTTP, error) {
 		handlers.routes()...,
 	)
 
-	router.Use(accesslog.AccessLog)
+	if cfg.EnableAccessLog {
+		router.Use(accesslog.AccessLog)
+		router.UseOnSpecialHandlers(accesslog.AccessLog)
+	}
 	router.Use(panicRecoverer)
 
 	// in this app, /-/ prefixed routes are used for healthchecks, readiness checks etc.
@@ -79,17 +82,9 @@ func NewService(cfg *Config, apis api.Server) (*HTTP, error) {
 		return wctx.Route.Pattern
 	})
 
-	httpServer := &http.Server{
-		Addr:              fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
-		Handler:           apm.NewHTTPMiddleware()(router),
-		ReadTimeout:       cfg.ReadTimeout,
-		ReadHeaderTimeout: cfg.ReadTimeout,
-		WriteTimeout:      cfg.WriteTimeout,
-		IdleTimeout:       cfg.ReadTimeout * 2,
-	}
-
+	_ = apm.NewHTTPMiddleware()
 	return &HTTP{
-		server:   httpServer,
+		server:   router,
 		listener: fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
 	}, nil
 }

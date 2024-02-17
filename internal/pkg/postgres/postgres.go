@@ -49,8 +49,8 @@ func (cfg *Config) ConnURL() string {
 	)
 }
 
-// NewService returns a new instance of PGX pool
-func NewService(cfg *Config) (*pgxpool.Pool, error) {
+// NewPool returns a new instance of PGX pool
+func NewPool(cfg *Config) (*pgxpool.Pool, error) {
 	poolcfg, err := pgxpool.ParseConfig(cfg.ConnURL())
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse config")

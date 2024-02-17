@@ -39,6 +39,9 @@ func (ps *pgstore) GetUserByEmail(ctx context.Context, email string) (*User, err
 	row := ps.pqdriver.QueryRow(ctx, query, args...)
 	err = row.Scan(user.ID, user.Name, phone, address)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.NotFoundErr(ErrUserEmailNotFound, email)
+		}
 		return nil, errors.Wrap(err, "failed getting user info")
 	}
 	user.Address = address.String

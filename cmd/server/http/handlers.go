@@ -8,7 +8,7 @@ import (
 	"runtime/debug"
 
 	"github.com/bnkamalesh/errors"
-	"github.com/bnkamalesh/webgo/v6"
+	"github.com/bnkamalesh/webgo/v7"
 
 	"github.com/bnkamalesh/goapp/internal/api"
 	"github.com/bnkamalesh/goapp/internal/pkg/logger"
@@ -106,7 +106,9 @@ func errWrapper(h func(w http.ResponseWriter, r *http.Request) error) http.Handl
 
 		status, msg, _ := errors.HTTPStatusCodeMessage(err)
 		webgo.SendError(w, msg, status)
-		_ = logger.Error(r.Context(), errors.Stacktrace(err))
+		if status > 499 {
+			_ = logger.Error(r.Context(), errors.Stacktrace(err))
+		}
 	}
 }
 

@@ -5,7 +5,8 @@ go 1.21
 require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/bnkamalesh/errors v0.11.1
-	github.com/bnkamalesh/webgo/v6 v6.7.0
+	github.com/bnkamalesh/webgo/v7 v7.0.0
+	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.5.3
 	github.com/prometheus/client_golang v1.18.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.48.0
@@ -33,7 +34,6 @@ require (
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.19.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20231201235250-de7065d80cb9 // indirect
