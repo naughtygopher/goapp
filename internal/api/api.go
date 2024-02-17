@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/bnkamalesh/goapp/internal/usernotes"
 	"github.com/bnkamalesh/goapp/internal/users"
 )
 
@@ -15,6 +16,8 @@ var (
 type Server interface {
 	CreateUser(ctx context.Context, user *users.User) (*users.User, error)
 	ReadUserByEmail(ctx context.Context, email string) (*users.User, error)
+	CreateUserNote(ctx context.Context, un *usernotes.Note) (*usernotes.Note, error)
+	ReadUserNote(ctx context.Context, userID string, noteID string) (*usernotes.Note, error)
 	ServerHealth() (map[string]any, error)
 }
 
@@ -24,7 +27,8 @@ type Subscriber interface {
 }
 
 type API struct {
-	users *users.Users
+	users  *users.Users
+	unotes *usernotes.UserNotes
 }
 
 // ServerHealth returns the health of the serever app along with other info like version
@@ -40,18 +44,17 @@ func (a *API) ServerHealth() (map[string]any, error) {
 
 }
 
-func New(us *users.Users) *API {
+func New(us *users.Users, un *usernotes.UserNotes) *API {
 	return &API{
-		users: us,
+		users:  us,
+		unotes: un,
 	}
 }
 
-func NewServer(us *users.Users) Server {
-	return &API{
-		users: us,
-	}
+func NewServer(us *users.Users, un *usernotes.UserNotes) Server {
+	return New(us, un)
 }
 
-func NewSubscriber() Subscriber {
-	return &API{}
+func NewSubscriber(us *users.Users) Subscriber {
+	return New(us, nil)
 }

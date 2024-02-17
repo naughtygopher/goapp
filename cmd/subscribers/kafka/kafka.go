@@ -1,3 +1,4 @@
+// Package kafka implements the Kafka subscription functionality
 package kafka
 
 import "github.com/bnkamalesh/goapp/internal/api"
