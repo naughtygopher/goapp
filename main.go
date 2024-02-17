@@ -90,7 +90,7 @@ func startAPM(ctx context.Context, cfg *configs.Configs) *apm.APM {
 		Environment:      cfg.Environment.String(),
 		ServiceName:      cfg.AppName,
 		ServiceVersion:   cfg.AppVersion,
-		TracesSampleRate: 100.00,
+		TracesSampleRate: 50.00,
 		UseStdOut:        cfg.Environment == configs.EnvLocal,
 	})
 	if err != nil {
@@ -139,7 +139,7 @@ func main() {
 
 	userPGstore := users.NewPostgresStore(pqdriver, cfgs.UserPostgresTable())
 	userSvc := users.NewService(userPGstore)
-	svrAPIs := api.NewServer(userSvc)
+	svrAPIs := api.NewServer(userSvc, nil)
 	hserver, gserver := startServers(svrAPIs, cfgs)
 
 	defer shutdown(

@@ -18,9 +18,10 @@ type pgstore struct {
 
 func (ps *pgstore) GetNoteByID(ctx context.Context, userID string, noteID string) (*Note, error) {
 	query, args, err := ps.qbuilder.Select(
-		"id",
 		"title",
 		"content",
+		"created_at",
+		"updated_at",
 	).From(
 		ps.tableName,
 	).Where(
@@ -34,6 +35,7 @@ func (ps *pgstore) GetNoteByID(ctx context.Context, userID string, noteID string
 	}
 
 	usernote := &Note{
+		ID: noteID,
 		Creator: &users.User{
 			ID: userID,
 		},
@@ -42,9 +44,10 @@ func (ps *pgstore) GetNoteByID(ctx context.Context, userID string, noteID string
 	err = ps.pqdriver.QueryRow(
 		ctx, query, args...,
 	).Scan(
-		usernote.ID,
-		usernote.Title,
-		usernote.Content,
+		&usernote.Title,
+		&usernote.Content,
+		&usernote.CreatedAt,
+		&usernote.UpdatedAt,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed getting user note")
