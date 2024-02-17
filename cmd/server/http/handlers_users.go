@@ -24,16 +24,7 @@ func (h *Handlers) CreateUser(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	b, err := json.Marshal(createdUser)
-	if err != nil {
-		return errors.InputBodyErr(err, "invalid input body provided")
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write(b)
-	if err != nil {
-		return errors.Wrap(err, "failed to respond")
-	}
+	webgo.R200(w, createdUser)
 
 	return nil
 }
@@ -49,5 +40,6 @@ func (h *Handlers) ReadUserByEmail(w http.ResponseWriter, r *http.Request) error
 	}
 
 	webgo.R200(w, out)
+
 	return nil
 }

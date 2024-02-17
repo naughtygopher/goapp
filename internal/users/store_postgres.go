@@ -3,6 +3,7 @@ package users
 import (
 	"context"
 	"database/sql"
+	"strings"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/bnkamalesh/errors"
@@ -20,10 +21,10 @@ type pgstore struct {
 func (ps *pgstore) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	query, args, err := ps.qbuilder.Select(
 		"id",
-		"uname",
+		"full_name",
 		"email",
 		"phone",
-		"uaddress",
+		"contact_address",
 	).From(
 		ps.tableName,
 	).Where(
@@ -34,17 +35,20 @@ func (ps *pgstore) GetUserByEmail(ctx context.Context, email string) (*User, err
 	}
 
 	user := new(User)
+	uid := new(uuid.NullUUID)
 	address := new(sql.NullString)
 	phone := new(sql.NullString)
+
 	row := ps.pqdriver.QueryRow(ctx, query, args...)
-	err = row.Scan(user.ID, user.Name, phone, address)
+	err = row.Scan(uid, &user.FullName, &user.Email, phone, address)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, errors.NotFoundErr(ErrUserEmailNotFound, email)
 		}
 		return nil, errors.Wrap(err, "failed getting user info")
 	}
-	user.Address = address.String
+	user.ID = uid.UUID.String()
+	user.ContactAddress = address.String
 	user.Phone = phone.String
 
 	return user, nil
@@ -57,21 +61,21 @@ func (ps *pgstore) SaveUser(ctx context.Context, user *User) (string, error) {
 		ps.tableName,
 	).Columns(
 		"id",
-		"uname",
+		"full_name",
 		"email",
 		"phone",
-		"uaddress",
+		"contact_address",
 	).Values(
 		user.ID,
-		user.Name,
+		user.FullName,
 		user.Email,
 		sql.NullString{
 			String: user.Phone,
-			Valid:  len(user.Phone) == 0,
+			Valid:  len(user.Phone) != 0,
 		},
 		sql.NullString{
-			String: user.Address,
-			Valid:  len(user.Address) == 0,
+			String: user.ContactAddress,
+			Valid:  len(user.ContactAddress) != 0,
 		},
 	).ToSql()
 	if err != nil {
@@ -79,6 +83,9 @@ func (ps *pgstore) SaveUser(ctx context.Context, user *User) (string, error) {
 	}
 	_, err = ps.pqdriver.Exec(ctx, query, args...)
 	if err != nil {
+		if strings.Contains(err.Error(), "violates unique constraint \"users_email_key\"") {
+			return "", errors.DuplicateErr(ErrUserEmailAlreadyExists, user.Email)
+		}
 		return "", errors.Wrap(err, "failed storing user info")
 	}
 
@@ -91,15 +98,15 @@ func (ps *pgstore) BulkSaveUser(ctx context.Context, users []User) error {
 	for _, user := range users {
 		rows = append(rows, []any{
 			user.ID,
-			user.Name,
+			user.FullName,
 			user.Email,
 			sql.NullString{
 				String: user.Phone,
-				Valid:  len(user.Phone) == 0,
+				Valid:  len(user.Phone) != 0,
 			},
 			sql.NullString{
-				String: user.Address,
-				Valid:  len(user.Address) == 0,
+				String: user.ContactAddress,
+				Valid:  len(user.ContactAddress) != 0,
 			},
 		})
 	}
@@ -107,7 +114,7 @@ func (ps *pgstore) BulkSaveUser(ctx context.Context, users []User) error {
 	inserted, err := ps.pqdriver.CopyFrom(
 		ctx,
 		pgx.Identifier{ps.tableName},
-		[]string{"id", "uname", "email", "phone", "uaddress"},
+		[]string{"id", "full_name", "email", "phone", "contact_address"},
 		pgx.CopyFromRows(rows),
 	)
 	if err != nil {

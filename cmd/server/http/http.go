@@ -67,22 +67,27 @@ func NewService(cfg *Config, apis api.Server) (*HTTP, error) {
 	}
 	router.Use(panicRecoverer)
 
-	// in this app, /-/ prefixed routes are used for healthchecks, readiness checks etc.
-	_ = otelhttp.WithFilter(func(req *http.Request) bool {
-		return !strings.HasPrefix(req.URL.Path, "/-/")
+	otelopts := []otelhttp.Option{
+		// in this app, /-/ prefixed routes are used for healthchecks, readiness checks etc.
+		otelhttp.WithFilter(func(req *http.Request) bool {
+			return !strings.HasPrefix(req.URL.Path, "/-/")
+		}),
+		// the span name formatter is used to reduce the cardinality of metrics generated
+		// when using URIs with variables in it
+		otelhttp.WithSpanNameFormatter(func(operation string, r *http.Request) string {
+			wctx := webgo.Context(r)
+			if wctx == nil {
+				return r.URL.Path
+			}
+			return wctx.Route.Pattern
+		}),
+	}
+
+	apmMw := apm.NewHTTPMiddleware(otelopts...)
+	router.Use(func(w http.ResponseWriter, r *http.Request, hf http.HandlerFunc) {
+		apmMw(hf).ServeHTTP(w, r)
 	})
 
-	// the span name formatter is used to reduce the cardinality of metrics generated
-	// when using URIs with variables in it
-	otelhttp.WithSpanNameFormatter(func(operation string, r *http.Request) string {
-		wctx := webgo.Context(r)
-		if wctx == nil {
-			return r.URL.Path
-		}
-		return wctx.Route.Pattern
-	})
-
-	_ = apm.NewHTTPMiddleware()
 	return &HTTP{
 		server:   router,
 		listener: fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),

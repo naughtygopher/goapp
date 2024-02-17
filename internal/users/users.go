@@ -9,21 +9,22 @@ import (
 )
 
 var (
-	ErrUserEmailNotFound = errors.New("user with the email not found")
+	ErrUserEmailNotFound      = errors.New("user with the email not found")
+	ErrUserEmailAlreadyExists = errors.New("user with the email already exists")
 )
 
 type User struct {
-	ID      string
-	Name    string
-	Email   string
-	Phone   string
-	Address string
+	ID             string
+	FullName       string
+	Email          string
+	Phone          string
+	ContactAddress string
 }
 
 // ValidateForCreate runs the validation required for when a user is being created. i.e. ID is not available
 func (us *User) ValidateForCreate() error {
-	if us.Name == "" {
-		return errors.Validation("name cannot be empty")
+	if us.FullName == "" {
+		return errors.Validation("full name cannot be empty")
 	}
 
 	if us.Email == "" {
@@ -35,8 +36,8 @@ func (us *User) ValidateForCreate() error {
 
 func (us *User) Sanitize() {
 	us.ID = strings.TrimSpace(us.ID)
-	us.Name = strings.TrimSpace(us.Name)
-	us.Address = strings.TrimSpace(us.Address)
+	us.FullName = strings.TrimSpace(us.FullName)
+	us.ContactAddress = strings.TrimSpace(us.ContactAddress)
 	us.Phone = strings.TrimSpace(us.Phone)
 }
 

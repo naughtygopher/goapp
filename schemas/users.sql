@@ -1,9 +1,9 @@
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY,
     email TEXT UNIQUE,
-    uname TEXT,
+    full_name TEXT,
     phone TEXT,
-    uaddress TEXT,
+    contact_address TEXT,
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz DEFAULT now()
 );
