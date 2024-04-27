@@ -1,12 +1,14 @@
 package http
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/bnkamalesh/errors"
 	"github.com/bnkamalesh/goapp/internal/api"
 	"github.com/bnkamalesh/goapp/internal/pkg/apm"
 	"github.com/bnkamalesh/webgo/v7"
@@ -35,6 +37,15 @@ type HTTP struct {
 // Start starts the HTTP server
 func (h *HTTP) Start() error {
 	h.server.Start()
+	return nil
+}
+
+func (h *HTTP) Shutdown(ctx context.Context) error {
+	err := h.server.Shutdown()
+	if err != nil {
+		return errors.Wrap(err, "failed shutting down HTTP server")
+	}
+
 	return nil
 }
 
