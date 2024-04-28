@@ -107,7 +107,7 @@ func errWrapper(h func(w http.ResponseWriter, r *http.Request) error) http.Handl
 		status, msg, _ := errors.HTTPStatusCodeMessage(err)
 		webgo.SendError(w, msg, status)
 		if status > 499 {
-			_ = logger.Error(r.Context(), errors.Stacktrace(err))
+			logger.Error(r.Context(), errors.Stacktrace(err))
 		}
 	}
 }
@@ -120,7 +120,7 @@ func panicRecoverer(w http.ResponseWriter, r *http.Request, next http.HandlerFun
 		}
 		webgo.R500(w, errors.DefaultMessage)
 
-		_ = logger.Error(r.Context(), fmt.Sprintf("%+v", p))
+		logger.Error(r.Context(), fmt.Sprintf("%+v", p))
 		fmt.Println(string(debug.Stack()))
 	}()
 
