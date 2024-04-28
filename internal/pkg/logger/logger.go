@@ -4,12 +4,17 @@
 package logger
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"runtime"
 	"time"
 )
+
+func init() {
+	_ = Logger(defaultLogger)
+}
 
 const (
 	// LogTypeInfo is for logging type 'info'
@@ -24,10 +29,10 @@ const (
 
 // Logger interface defines all the logging methods to be implemented
 type Logger interface {
-	Info(payload ...interface{}) error
-	Warn(payload ...interface{}) error
-	Error(payload ...interface{}) error
-	Fatal(payload ...interface{}) error
+	Info(ctx context.Context, payload ...any)
+	Warn(ctx context.Context, payload ...any)
+	Error(ctx context.Context, payload ...any)
+	Fatal(ctx context.Context, payload ...any)
 }
 
 // LogHandler implements Logger
@@ -35,20 +40,25 @@ type LogHandler struct {
 	Skipstack  int
 	appName    string
 	appVersion string
+	params     map[string]string
 }
 
-func (lh *LogHandler) defaultPayload(severity string) map[string]interface{} {
+func (lh *LogHandler) defaultPayload(severity string) map[string]any {
 	_, file, line, _ := runtime.Caller(lh.Skipstack)
-	return map[string]interface{}{
+	payload := map[string]any{
 		"app":        lh.appName,
 		"appVersion": lh.appVersion,
 		"severity":   severity,
-		"line":       fmt.Sprintf("%s:%d", file, line),
-		"at":         time.Now(),
+		"at":         fmt.Sprintf("%s:%d", file, line),
+		"timestamp":  time.Now(),
 	}
+	for key, value := range lh.params {
+		payload[key] = value
+	}
+	return payload
 }
 
-func (lh *LogHandler) serialize(severity string, data ...interface{}) (string, error) {
+func (lh *LogHandler) serialize(severity string, data ...any) (string, error) {
 	payload := lh.defaultPayload(severity)
 	for idx, value := range data {
 		payload[fmt.Sprintf("%d", idx)] = fmt.Sprintf("%+v", value)
@@ -62,10 +72,11 @@ func (lh *LogHandler) serialize(severity string, data ...interface{}) (string, e
 	return string(b), nil
 }
 
-func (lh *LogHandler) log(severity string, payload ...interface{}) error {
+func (lh *LogHandler) log(severity string, payload ...any) {
 	out, err := lh.serialize(severity, payload...)
 	if err != nil {
-		return err
+		fmt.Printf("%+v\n", err)
+		return
 	}
 
 	switch severity {
@@ -76,32 +87,35 @@ func (lh *LogHandler) log(severity string, payload ...interface{}) error {
 		}
 	}
 	fmt.Println(out)
-
-	return nil
 }
 
 // Info is for logging items with severity 'info'
-func (lh *LogHandler) Info(payload ...interface{}) error {
-	return lh.log(LogTypeInfo, payload...)
+func (lh *LogHandler) Info(ctx context.Context, payload ...any) {
+	lh.log(LogTypeInfo, payload...)
 }
 
 // Warn is for logging items with severity 'Warn'
-func (lh *LogHandler) Warn(payload ...interface{}) error {
-	return lh.log(LogTypeWarn, payload...)
+func (lh *LogHandler) Warn(ctx context.Context, payload ...any) {
+	lh.log(LogTypeWarn, payload...)
 }
 
 // Error is for logging items with severity 'Error'
-func (lh *LogHandler) Error(payload ...interface{}) error {
-	return lh.log(LogTypeError, payload...)
+func (lh *LogHandler) Error(ctx context.Context, payload ...any) {
+	lh.log(LogTypeError, payload...)
 }
 
 // Fatal is for logging items with severity 'Fatal'
-func (lh *LogHandler) Fatal(payload ...interface{}) error {
-	return lh.log(LogTypeFatal, payload...)
+func (lh *LogHandler) Fatal(ctx context.Context, payload ...any) {
+	lh.log(LogTypeFatal, payload...)
 }
 
 // New returns a new instance of LogHandler
-func New(appname string, appversion string, skipStack uint) *LogHandler {
+func New(
+	appname string,
+	appversion string,
+	skipStack uint8,
+	params map[string]string,
+) *LogHandler {
 	if skipStack <= 1 {
 		skipStack = 4
 	}
@@ -110,5 +124,6 @@ func New(appname string, appversion string, skipStack uint) *LogHandler {
 		Skipstack:  int(skipStack),
 		appName:    appname,
 		appVersion: appversion,
+		params:     params,
 	}
 }
