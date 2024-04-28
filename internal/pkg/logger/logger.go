@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+func init() {
+	_ = Logger(defaultLogger)
+}
+
 const (
 	// LogTypeInfo is for logging type 'info'
 	LogTypeInfo = "info"
@@ -25,10 +29,10 @@ const (
 
 // Logger interface defines all the logging methods to be implemented
 type Logger interface {
-	Info(ctx context.Context, payload ...any) error
-	Warn(ctx context.Context, payload ...any) error
-	Error(ctx context.Context, payload ...any) error
-	Fatal(ctx context.Context, payload ...any) error
+	Info(ctx context.Context, payload ...any)
+	Warn(ctx context.Context, payload ...any)
+	Error(ctx context.Context, payload ...any)
+	Fatal(ctx context.Context, payload ...any)
 }
 
 // LogHandler implements Logger
@@ -45,8 +49,8 @@ func (lh *LogHandler) defaultPayload(severity string) map[string]any {
 		"app":        lh.appName,
 		"appVersion": lh.appVersion,
 		"severity":   severity,
-		"line":       fmt.Sprintf("%s:%d", file, line),
-		"at":         time.Now(),
+		"at":         fmt.Sprintf("%s:%d", file, line),
+		"timestamp":  time.Now(),
 	}
 	for key, value := range lh.params {
 		payload[key] = value
@@ -68,10 +72,11 @@ func (lh *LogHandler) serialize(severity string, data ...any) (string, error) {
 	return string(b), nil
 }
 
-func (lh *LogHandler) log(severity string, payload ...any) error {
+func (lh *LogHandler) log(severity string, payload ...any) {
 	out, err := lh.serialize(severity, payload...)
 	if err != nil {
-		return err
+		fmt.Printf("%+v\n", err)
+		return
 	}
 
 	switch severity {
@@ -82,28 +87,26 @@ func (lh *LogHandler) log(severity string, payload ...any) error {
 		}
 	}
 	fmt.Println(out)
-
-	return nil
 }
 
 // Info is for logging items with severity 'info'
-func (lh *LogHandler) Info(payload ...any) error {
-	return lh.log(LogTypeInfo, payload...)
+func (lh *LogHandler) Info(ctx context.Context, payload ...any) {
+	lh.log(LogTypeInfo, payload...)
 }
 
 // Warn is for logging items with severity 'Warn'
-func (lh *LogHandler) Warn(payload ...any) error {
-	return lh.log(LogTypeWarn, payload...)
+func (lh *LogHandler) Warn(ctx context.Context, payload ...any) {
+	lh.log(LogTypeWarn, payload...)
 }
 
 // Error is for logging items with severity 'Error'
-func (lh *LogHandler) Error(payload ...any) error {
-	return lh.log(LogTypeError, payload...)
+func (lh *LogHandler) Error(ctx context.Context, payload ...any) {
+	lh.log(LogTypeError, payload...)
 }
 
 // Fatal is for logging items with severity 'Fatal'
-func (lh *LogHandler) Fatal(payload ...any) error {
-	return lh.log(LogTypeFatal, payload...)
+func (lh *LogHandler) Fatal(ctx context.Context, payload ...any) {
+	lh.log(LogTypeFatal, payload...)
 }
 
 // New returns a new instance of LogHandler
