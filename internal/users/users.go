@@ -37,8 +37,9 @@ func (us *User) ValidateForCreate() error {
 func (us *User) Sanitize() {
 	us.ID = strings.TrimSpace(us.ID)
 	us.FullName = strings.TrimSpace(us.FullName)
-	us.ContactAddress = strings.TrimSpace(us.ContactAddress)
+	us.Email = strings.TrimSpace(us.Email)
 	us.Phone = strings.TrimSpace(us.Phone)
+	us.ContactAddress = strings.TrimSpace(us.ContactAddress)
 }
 
 type store interface {

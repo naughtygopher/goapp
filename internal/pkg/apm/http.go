@@ -12,6 +12,7 @@ func NewHTTPMiddleware(opts ...otelhttp.Option) HTTPMiddleware {
 	if len(opts) == 0 {
 		opts = make([]otelhttp.Option, 0, 3)
 	}
+
 	gb := Global()
 	opts = append(opts,
 		otelhttp.WithMeterProvider(gb.GetMeterProvider()),

@@ -72,7 +72,7 @@ func NewMeter(config Options, reader sdkmetric.Reader) (metric.MeterProvider, *M
 		sdkmetric.WithReader(reader),
 		sdkmetric.WithView(customViews()...),
 		sdkmetric.WithResource(resource.NewWithAttributes(
-			"",
+			semconv.SchemaURL,
 			semconv.ServiceNameKey.String(config.ServiceName),
 			semconv.ServiceVersionKey.String(config.ServiceVersion),
 		),
