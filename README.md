@@ -7,11 +7,11 @@
 [![](https://godoc.org/github.com/nathany/looper?status.svg)](http://godoc.org/github.com/bnkamalesh/goapp)
 [![](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#tutorials)
 
-# Goapp
+# Goapp v1.0
 
 This is an opinionated guideline to structure a Go web application/service (could be extended for any type of application). My opinions were formed over a span of 8+ years building web applications/services with Go, trying to implement [DDD (Domain Driven Development)](https://en.wikipedia.org/wiki/Domain-driven_design) & [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html). This guideline works for 1.4+ (i.e. since introduction of the [special 'internal' directory](https://go.dev/doc/go1.4#internalpackages)).
 
-P.S: This guideline is not directly applicable for an independent package, as their primary use is to be consumed in other applications. In such cases, having most or all of the package code in the root is probably the best way of doing it. And that is where Go's recommendation of "no unnecessary sub packages" shines.
+P.S: This guideline is not directly applicable for an independent package, as their primary use is to be consumed in other applications. In such cases, having most or all of the package code in the root is probably the best way of doing it.
 
 The structure is explained based on a note taking web application (with hardly any features implemented 🤭).
 
@@ -20,7 +20,7 @@ The structure is explained based on a note taking web application (with hardly a
 1. [Directory structure](#directory-structure)
 2. [Configs package](#internalconfigs)
 3. [API package](#internalapi)
-4. [Users](#internalusers) (would be common for all such business logic / domain units, 'notes' being similar to users) package.
+4. [Users](#internalusers) (would be common for all such business logic / domain units, 'usernotes' being similar to users) package.
 5. [Testing](#internalusers_test)
 6. [pkg package](#internalpkg)
    - 6.1. [datastore](#internalpkgdatastore)
@@ -126,9 +126,9 @@ The `store_postgres.go` in this package is where you write all the direct intera
 
 ## internal/users_test
 
-There's quite a lot of debate about 100% test coverage or not. 100% coverage sounds very nice, but might not always be practical or at times not even possible. What I like doing is, writing unit test for your core business logic, in this case 'Sanitize', 'Validate' etc are my business logic.
+There's quite a lot of discussions about achieveing and maintaining 100% test coverage or not. 100% coverage sounds very nice, but might not always be practical or at times not even possible. What I like doing is, writing unit test for your core business logic, in this case 'Sanitize', 'Validate' etc are my business logic.
 
-It is important for us to understand the purpose of unit tests. The sole purpose of unit test is unironically "test the purpose of the unit/function". It is _*not*_ to check the implementation, how it's done, how much time it took, how efficient it is etc. The sole purpose is to validate "what it does". This is why you see a lot of unit tests will have hardcoded values, because those values are reliable/verified human input.
+It is important for us to understand the purpose of unit tests. The sole purpose of unit test is unironically "test the purpose of the unit/function". It is _*not*_ to check the implementation, how it's done, how much time it took, how efficient it is etc. The sole purpose is to validate "what it does". This is why you see a lot of unit tests will have hardcoded values, because those are reliable/verified human input which we validate against.
 
 Once you develop the habit of writing unit tests for [pure functions](https://en.wikipedia.org/wiki/Pure_function) and get the hang of it. You automatically start breaking down big functions into smaller _*testable*_ functions/units (this is the best outcome, and what we'd love to have). When you _layer_ your application, datastore is ideally just a utility (_implementation detail_ in [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html) parlance), and if you can implement your business logic with pure functions alone, not dependent on such utlities, that'd be perfect! Though in most cases you'd have dependencies like database, queue, cache etc. But to keep things as _pure_ as possible, we bridge the gap using Go interfaces. Refer to `store.go`, the business logic functions are oblivious to the underlying technology (RDBMS, NoSQL, CSV etc.).
 
@@ -144,11 +144,11 @@ Similar to the users package, 'usernotes' handles all business logic related to 
 
 ## internal/pkg
 
-pkg package contains all the packages which are to be consumed across multiple packages within the project. For instance the _*postgres*_ package will be consumed by both users and usernotes package. I'm not really particular about the name _pkg_. This might as well be _utils_ or some other generic name of your choice.
+pkg package contains all the packages which are to be consumed across multiple packages within the project. For instance the _*postgres*_ package will be consumed by both users and usernotes package.
 
 ### internal/pkg/postgres
 
-The postgres package initializes `pgxpool.Pool` and returns a new instance. Though a seemingly redundant package only for initialization, it's useful to do all the default configuration which we want standardize across the application. An example is to wrap the driver, or functions for [APM](https://en.wikipedia.org/wiki/Application_performance_management). The screenshots below show how APM can help us monitor.
+The postgres package initializes `pgxpool.Pool` and returns a new instance. Though a seemingly redundant package only for initialization, it's useful to do all the default configuration which we want standardized across the application. An example is to wrap the driver, or functions for [APM](https://en.wikipedia.org/wiki/Application_performance_management). The screenshots below show how APM can help us monitor our application.
 
 <p align="center">
 <img src="https://user-images.githubusercontent.com/1092882/86710556-baa07180-c038-11ea-8924-3b4d61db1476.png" alt="APM overall" width="384px" height="256px" style="margin-right: 16px" />
