@@ -1,6 +1,6 @@
 module github.com/bnkamalesh/goapp
 
-go 1.22.2
+go 1.19
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
