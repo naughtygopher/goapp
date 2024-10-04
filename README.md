@@ -1,6 +1,6 @@
 <p align="center"><img src="https://user-images.githubusercontent.com/1092882/86512217-bfd5a480-be1d-11ea-976c-a7c0ac0cd1f1.png" alt="goapp gopher" width="256px"/></p>
 
-[![](https://github.com/naughtygopher/goapp/actions/workflows/go.yml/badge.svg?branch=main)](https://github.com/naughtygopher/goapp/actions)
+[![](https://github.com/naughtygopher/goapp/actions/workflows/go.yml/badge.svg?branch=master)](https://github.com/naughtygopher/goapp/actions)
 [![](https://godoc.org/github.com/nathany/looper?status.svg)](http://godoc.org/github.com/naughtygopher/goapp)
 [![](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#tutorials)
 
