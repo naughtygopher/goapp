@@ -1,9 +1,6 @@
 <p align="center"><img src="https://user-images.githubusercontent.com/1092882/86512217-bfd5a480-be1d-11ea-976c-a7c0ac0cd1f1.png" alt="goapp gopher" width="256px"/></p>
 
-[![](https://github.com/naughtygopher/goapp/actions/workflows/tests.yaml/badge.svg)](https://github.com/bnkamalesh/webgo/actions/workflows/tests.yaml)
-[![codecov](https://codecov.io/gh/bnkamalesh/goapp/branch/master/graph/badge.svg)](https://codecov.io/gh/bnkamalesh/goapp)
-[![Go Report Card](https://goreportcard.com/badge/github.com/naughtygopher/goapp)](https://goreportcard.com/report/github.com/naughtygopher/goapp)
-[![Maintainability](https://api.codeclimate.com/v1/badges/acd31bcdc1a4d668ebf4/maintainability)](https://codeclimate.com/github/bnkamalesh/goapp/maintainability)
+[![](https://github.com/naughtygopher/goapp/actions/workflows/go.yml/badge.svg?branch=main)](https://github.com/naughtygopher/goapp/actions)
 [![](https://godoc.org/github.com/nathany/looper?status.svg)](http://godoc.org/github.com/naughtygopher/goapp)
 [![](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#tutorials)
 
