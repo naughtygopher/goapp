@@ -10,8 +10,8 @@ import (
 	"github.com/bnkamalesh/errors"
 	"github.com/bnkamalesh/webgo/v7"
 
-	"github.com/bnkamalesh/goapp/internal/api"
-	"github.com/bnkamalesh/goapp/internal/pkg/logger"
+	"github.com/naughtygopher/goapp/internal/api"
+	"github.com/naughtygopher/goapp/internal/pkg/logger"
 )
 
 // Handlers struct has all the dependencies required for HTTP handlers

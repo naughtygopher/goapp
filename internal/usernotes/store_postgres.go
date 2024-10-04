@@ -5,7 +5,7 @@ import (
 
 	"github.com/Masterminds/squirrel"
 	"github.com/bnkamalesh/errors"
-	"github.com/bnkamalesh/goapp/internal/users"
+	"github.com/naughtygopher/goapp/internal/users"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )

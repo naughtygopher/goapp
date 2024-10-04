@@ -7,7 +7,7 @@ import (
 	"github.com/bnkamalesh/errors"
 	"github.com/bnkamalesh/webgo/v7"
 
-	"github.com/bnkamalesh/goapp/internal/users"
+	"github.com/naughtygopher/goapp/internal/users"
 )
 
 // CreateUser is the HTTP handler to create a new user

@@ -9,15 +9,15 @@ import (
 
 	"github.com/bnkamalesh/errors"
 
-	"github.com/bnkamalesh/goapp/cmd/server/grpc"
-	"github.com/bnkamalesh/goapp/cmd/server/http"
-	"github.com/bnkamalesh/goapp/internal/api"
-	"github.com/bnkamalesh/goapp/internal/configs"
-	"github.com/bnkamalesh/goapp/internal/pkg/apm"
-	"github.com/bnkamalesh/goapp/internal/pkg/logger"
-	"github.com/bnkamalesh/goapp/internal/pkg/postgres"
-	"github.com/bnkamalesh/goapp/internal/pkg/sysignals"
-	"github.com/bnkamalesh/goapp/internal/users"
+	"github.com/naughtygopher/goapp/cmd/server/grpc"
+	"github.com/naughtygopher/goapp/cmd/server/http"
+	"github.com/naughtygopher/goapp/internal/api"
+	"github.com/naughtygopher/goapp/internal/configs"
+	"github.com/naughtygopher/goapp/internal/pkg/apm"
+	"github.com/naughtygopher/goapp/internal/pkg/logger"
+	"github.com/naughtygopher/goapp/internal/pkg/postgres"
+	"github.com/naughtygopher/goapp/internal/pkg/sysignals"
+	"github.com/naughtygopher/goapp/internal/users"
 )
 
 // recoverer is used for panic recovery of the application (note: this is not for the HTTP/gRPC servers).

@@ -1,10 +1,10 @@
 <p align="center"><img src="https://user-images.githubusercontent.com/1092882/86512217-bfd5a480-be1d-11ea-976c-a7c0ac0cd1f1.png" alt="goapp gopher" width="256px"/></p>
 
-[![](https://github.com/bnkamalesh/goapp/actions/workflows/tests.yaml/badge.svg)](https://github.com/bnkamalesh/webgo/actions/workflows/tests.yaml)
+[![](https://github.com/naughtygopher/goapp/actions/workflows/tests.yaml/badge.svg)](https://github.com/bnkamalesh/webgo/actions/workflows/tests.yaml)
 [![codecov](https://codecov.io/gh/bnkamalesh/goapp/branch/master/graph/badge.svg)](https://codecov.io/gh/bnkamalesh/goapp)
-[![Go Report Card](https://goreportcard.com/badge/github.com/bnkamalesh/goapp)](https://goreportcard.com/report/github.com/bnkamalesh/goapp)
+[![Go Report Card](https://goreportcard.com/badge/github.com/naughtygopher/goapp)](https://goreportcard.com/report/github.com/naughtygopher/goapp)
 [![Maintainability](https://api.codeclimate.com/v1/badges/acd31bcdc1a4d668ebf4/maintainability)](https://codeclimate.com/github/bnkamalesh/goapp/maintainability)
-[![](https://godoc.org/github.com/nathany/looper?status.svg)](http://godoc.org/github.com/bnkamalesh/goapp)
+[![](https://godoc.org/github.com/nathany/looper?status.svg)](http://godoc.org/github.com/naughtygopher/goapp)
 [![](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#tutorials)
 
 # Goapp v1.0
@@ -191,7 +191,7 @@ All HTML templates required for the application are to be put here. Sub director
 
 This name is quite explicit and if you notice, it's outside of the special 'internal' directory. So any exported name or entity within this directory, is meant to be used in external projects.
 
-It might seem redundant to add a sub-directory called 'goapp', the import path would be `github.com/bnkamalesh/goapp/lib/goapp`. Though this is not a mistake, while importing this package, you'd use it as follows `goapp.<something>`. Rather if you directly put it under lib, it'd be `lib.<something>` and that's obviously too generic and you'd have to manually setup aliases every time. Or if you try solving it by having the package name which differ from the direcory name, it's going to be a tussle with your [IDE](https://en.wikipedia.org/wiki/Integrated_development_environment).
+It might seem redundant to add a sub-directory called 'goapp', the import path would be `github.com/naughtygopher/goapp/lib/goapp`. Though this is not a mistake, while importing this package, you'd use it as follows `goapp.<something>`. Rather if you directly put it under lib, it'd be `lib.<something>` and that's obviously too generic and you'd have to manually setup aliases every time. Or if you try solving it by having the package name which differ from the direcory name, it's going to be a tussle with your [IDE](https://en.wikipedia.org/wiki/Integrated_development_environment).
 
 Another advantage is, if you have more than one package which you'd like to be made available for external consumption, you create `lib/<other>`. In this case, you reduce the dependencies which are imported to external functions. On the contrary if you put everything inside `lib` or in a single package, you'd be forcing to import of all dependencies even when you'd need only a small part of it.
 
@@ -208,7 +208,7 @@ e.g. [Dockerfiles for Go applications](https://github.com/bnkamalesh/golang-dock
 You can create the Docker image for the sample app provided:
 
 ```bash
-$ git clone https://github.com/bnkamalesh/goapp.git
+$ git clone https://github.com/naughtygopher/goapp.git
 $ cd goapp
 # Update the internal/configs/configs.go with valid datastore configuration. Or pass nil while calling user service. This would cause the app to panic when calling any API with database interaction
 # Build the Docker image
@@ -264,7 +264,7 @@ I've used [webgo](https://github.com/bnkamalesh/webgo) to setup the HTTP server 
 How to run?
 
 ```bash
-$ git clone https://github.com/bnkamalesh/goapp.git
+$ git clone https://github.com/naughtygopher/goapp.git
 $ cd goapp
 # Update the internal/configs/configs.go with valid datastore configuration. Or pass 'nil' while calling user service. The app wouldn't start if no valid configuration is provided.
 $ TEMPLATES_BASEPATH=${PWD}/cmd/server/http/web/templates go run main.go | sed 's/\\n/\n/g;s/\\t/\t/g'
@@ -275,7 +275,7 @@ $ TEMPLATES_BASEPATH=${PWD}/cmd/server/http/web/templates go run main.go | sed '
 [gonew](https://go.dev/blog/gonew) lets you download a new Go module, and name it with a custom Go module name.
 
 ```bash
-$ gonew github.com/bnkamalesh/goapp@latest my.app
+$ gonew github.com/naughtygopher/goapp@latest my.app
 $ cd my.app
 ```
 

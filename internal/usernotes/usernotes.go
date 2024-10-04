@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/bnkamalesh/errors"
-	"github.com/bnkamalesh/goapp/internal/users"
+	"github.com/naughtygopher/goapp/internal/users"
 )
 
 type Note struct {

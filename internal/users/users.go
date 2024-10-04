@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/bnkamalesh/errors"
-	"github.com/bnkamalesh/goapp/internal/pkg/logger"
+	"github.com/naughtygopher/goapp/internal/pkg/logger"
 )
 
 var (

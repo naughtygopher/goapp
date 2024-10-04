@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bnkamalesh/goapp/cmd/server/http"
-	"github.com/bnkamalesh/goapp/internal/pkg/postgres"
+	"github.com/naughtygopher/goapp/cmd/server/http"
+	"github.com/naughtygopher/goapp/internal/pkg/postgres"
 )
 
 type env string

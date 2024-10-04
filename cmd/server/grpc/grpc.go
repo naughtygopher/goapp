@@ -1,6 +1,6 @@
 package grpc
 
-import "github.com/bnkamalesh/goapp/internal/api"
+import "github.com/naughtygopher/goapp/internal/api"
 
 type GRPC struct {
 	apis api.Server

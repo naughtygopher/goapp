@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/bnkamalesh/goapp/internal/usernotes"
+	"github.com/naughtygopher/goapp/internal/usernotes"
 )
 
 func (a *API) CreateUserNote(ctx context.Context, un *usernotes.Note) (*usernotes.Note, error) {

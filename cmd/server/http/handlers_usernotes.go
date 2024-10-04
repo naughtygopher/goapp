@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/bnkamalesh/errors"
-	"github.com/bnkamalesh/goapp/internal/usernotes"
+	"github.com/naughtygopher/goapp/internal/usernotes"
 	"github.com/bnkamalesh/webgo/v7"
 )
 

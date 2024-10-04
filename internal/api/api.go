@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/bnkamalesh/goapp/internal/usernotes"
-	"github.com/bnkamalesh/goapp/internal/users"
+	"github.com/naughtygopher/goapp/internal/usernotes"
+	"github.com/naughtygopher/goapp/internal/users"
 )
 
 var (
