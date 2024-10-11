@@ -3,6 +3,7 @@
 [![](https://github.com/naughtygopher/goapp/actions/workflows/go.yml/badge.svg?branch=master)](https://github.com/naughtygopher/goapp/actions)
 [![](https://godoc.org/github.com/nathany/looper?status.svg)](http://godoc.org/github.com/naughtygopher/goapp)
 [![](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#tutorials)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/creativecreature/sturdyc/blob/master/LICENSE)
 
 # Goapp v1.0
 
