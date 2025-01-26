@@ -1,8 +1,6 @@
 module github.com/naughtygopher/goapp
 
-go 1.23
-
-toolchain go1.23.5
+go 1.20
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
