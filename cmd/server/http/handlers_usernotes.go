@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/bnkamalesh/errors"
+	"github.com/naughtygopher/errors"
 	"github.com/naughtygopher/goapp/internal/usernotes"
-	"github.com/bnkamalesh/webgo/v7"
+	"github.com/naughtygopher/webgo/v7"
 )
 
 func (h *Handlers) CreateUserNote(w http.ResponseWriter, r *http.Request) error {

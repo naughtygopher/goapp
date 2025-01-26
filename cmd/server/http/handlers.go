@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	"github.com/bnkamalesh/errors"
-	"github.com/bnkamalesh/webgo/v7"
+	"github.com/naughtygopher/errors"
+	"github.com/naughtygopher/webgo/v7"
 
 	"github.com/naughtygopher/goapp/internal/api"
 	"github.com/naughtygopher/goapp/internal/pkg/logger"
@@ -30,13 +30,6 @@ func (h *Handlers) routes() []*webgo.Route {
 			TrailingSlash: true,
 		},
 		{
-			Name:          "health",
-			Pattern:       "/-/health",
-			Method:        http.MethodGet,
-			Handlers:      []http.HandlerFunc{errWrapper(h.Health)},
-			TrailingSlash: true,
-		},
-		{
 			Name:          "create-user",
 			Pattern:       "/users",
 			Method:        http.MethodPost,
@@ -53,18 +46,6 @@ func (h *Handlers) routes() []*webgo.Route {
 	}
 }
 
-// Health is the HTTP handler to return the status of the app including the version, and other details
-// This handler uses webgo to respond to the http request
-func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) error {
-	out, err := h.apis.ServerHealth()
-	if err != nil {
-		return err
-	}
-	webgo.R200(w, out)
-	return nil
-}
-
-// HelloWorld is a helloworld HTTP handler
 func (h *Handlers) HelloWorld(w http.ResponseWriter, r *http.Request) error {
 	contentType := r.Header.Get("Content-Type")
 	switch contentType {

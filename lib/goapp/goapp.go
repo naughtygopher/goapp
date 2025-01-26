@@ -8,7 +8,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/bnkamalesh/errors"
+	"github.com/naughtygopher/errors"
 )
 
 type User struct {

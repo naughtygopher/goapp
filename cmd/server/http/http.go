@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bnkamalesh/errors"
+	"github.com/naughtygopher/errors"
 	"github.com/naughtygopher/goapp/internal/api"
 	"github.com/naughtygopher/goapp/internal/pkg/apm"
-	"github.com/bnkamalesh/webgo/v7"
-	"github.com/bnkamalesh/webgo/v7/middleware/accesslog"
+	"github.com/naughtygopher/webgo/v7"
+	"github.com/naughtygopher/webgo/v7/middleware/accesslog"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 

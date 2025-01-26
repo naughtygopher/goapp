@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"github.com/Masterminds/squirrel"
-	"github.com/bnkamalesh/errors"
-	"github.com/naughtygopher/goapp/internal/users"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/naughtygopher/errors"
+	"github.com/naughtygopher/goapp/internal/users"
 )
 
 type pgstore struct {

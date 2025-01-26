@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bnkamalesh/errors"
+	"github.com/naughtygopher/errors"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
