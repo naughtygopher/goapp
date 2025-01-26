@@ -5,7 +5,6 @@ import (
 
 	"github.com/naughtygopher/goapp/internal/usernotes"
 	"github.com/naughtygopher/goapp/internal/users"
-	"github.com/naughtygopher/proberesponder"
 )
 
 // Server has all the methods required to run the server
@@ -22,9 +21,8 @@ type Subscriber interface {
 }
 
 type API struct {
-	users       *users.Users
-	unotes      *usernotes.UserNotes
-	probestatus *proberesponder.ProbeResponder
+	users  *users.Users
+	unotes *usernotes.UserNotes
 }
 
 func New(us *users.Users, un *usernotes.UserNotes) *API {
