@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/naughtygopher/errors"
 	"github.com/naughtygopher/proberesponder"
 	proberespHTTP "github.com/naughtygopher/proberesponder/extensions/http"
+	"github.com/naughtygopher/webgo/v7"
 
 	"github.com/naughtygopher/goapp/cmd/server/grpc"
 	xhttp "github.com/naughtygopher/goapp/cmd/server/http"
@@ -18,6 +21,8 @@ import (
 	"github.com/naughtygopher/goapp/internal/pkg/postgres"
 	"github.com/naughtygopher/goapp/internal/users"
 )
+
+var now = time.Now()
 
 func startAPM(ctx context.Context, cfg *configs.Configs) *apm.APM {
 	ap, err := apm.New(ctx, &apm.Options{
@@ -51,14 +56,43 @@ func startServers(svr api.Server, cfgs *configs.Configs, fatalErr chan<- error) 
 	return hserver, nil
 }
 
-func startHealthResponder(ctx context.Context, ps *proberesponder.ProbeResponder, api *api.API, fatalErr chan<- error) (*http.Server, error) {
+func healthResponseHandler(ps *proberesponder.ProbeResponder) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		payload := map[string]any{
+			"env":        "testing",
+			"version":    "v0.1.0",
+			"commit":     "<git commit hash>",
+			"status":     "all systems up and running",
+			"startedAt":  now.String(),
+			"releasedOn": now.String(),
+		}
+
+		for key, value := range ps.HealthResponse() {
+			payload[key] = value
+		}
+		b, _ := json.Marshal(payload)
+		w.Header().Add(webgo.HeaderContentType, webgo.JSONContentType)
+		_, _ = w.Write(b)
+	}
+}
+
+func startHealthResponder(ctx context.Context, ps *proberesponder.ProbeResponder, fatalErr chan<- error) (*http.Server, error) {
 	port := uint32(2000)
-	srv := proberespHTTP.Server(ps, "", uint16(port), proberespHTTP.Handlers{http.MethodGet, "/-/health", func(w http.ResponseWriter, r *http.Request) {}})
+	srv := proberespHTTP.Server(
+		ps, "", uint16(port),
+		proberespHTTP.Handler{
+			Method:  http.MethodGet,
+			Path:    "/-/health",
+			Handler: healthResponseHandler(ps),
+		},
+	)
+
 	go func() {
 		defer logger.Info(ctx, fmt.Sprintf("[http/healthresponder] :%d shutdown complete", port))
 		logger.Info(ctx, fmt.Sprintf("[http/healthresponder] listening on :%d", port))
 		fatalErr <- srv.ListenAndServe()
 	}()
+
 	return srv, nil
 }
 
