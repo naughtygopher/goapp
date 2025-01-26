@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bnkamalesh/errors"
+	"github.com/naughtygopher/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/exporters/prometheus"
 )

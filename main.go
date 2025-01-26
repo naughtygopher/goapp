@@ -4,20 +4,14 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"sync"
 	"time"
 
-	"github.com/bnkamalesh/errors"
+	"github.com/naughtygopher/errors"
+	"github.com/naughtygopher/proberesponder"
 
-	"github.com/naughtygopher/goapp/cmd/server/grpc"
-	"github.com/naughtygopher/goapp/cmd/server/http"
-	"github.com/naughtygopher/goapp/internal/api"
 	"github.com/naughtygopher/goapp/internal/configs"
-	"github.com/naughtygopher/goapp/internal/pkg/apm"
 	"github.com/naughtygopher/goapp/internal/pkg/logger"
-	"github.com/naughtygopher/goapp/internal/pkg/postgres"
 	"github.com/naughtygopher/goapp/internal/pkg/sysignals"
-	"github.com/naughtygopher/goapp/internal/users"
 )
 
 // recoverer is used for panic recovery of the application (note: this is not for the HTTP/gRPC servers).
@@ -57,70 +51,15 @@ func recoverer(ctx context.Context) {
 	os.Exit(exitCode)
 }
 
-func shutdown(
-	httpServer *http.HTTP,
-	grpcServer *grpc.GRPC,
-	apmIns *apm.APM,
-) {
-	const shutdownTimeout = time.Second * 60
-	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancel()
-
-	logger.Info(ctx, "initiating shutdown")
-
-	wgroup := &sync.WaitGroup{}
-	wgroup.Add(1)
-	go func() {
-		defer wgroup.Done()
-		_ = httpServer.Shutdown(ctx)
-	}()
-
-	// after all the APIs of the application are shutdown (e.g. HTTP, gRPC, Pubsub listener etc.)
-	// we should close connections to dependencies like database, cache etc.
-	// This should only be done after the APIs are shutdown completely
-	wgroup.Add(1)
-	go func() {
-		defer wgroup.Done()
-		_ = apmIns.Shutdown(ctx)
-	}()
-
-	wgroup.Wait()
-}
-
-func startAPM(ctx context.Context, cfg *configs.Configs) *apm.APM {
-	ap, err := apm.New(ctx, &apm.Options{
-		Debug:            cfg.Environment == configs.EnvLocal,
-		Environment:      cfg.Environment.String(),
-		ServiceName:      cfg.AppName,
-		ServiceVersion:   cfg.AppVersion,
-		TracesSampleRate: 50.00,
-		UseStdOut:        cfg.Environment == configs.EnvLocal,
-	})
-	if err != nil {
-		panic(errors.Wrap(err, "failed to start APM"))
-	}
-	return ap
-}
-
-func startServers(svr api.Server, cfgs *configs.Configs) (*http.HTTP, *grpc.GRPC) {
-	hcfg, _ := cfgs.HTTP()
-	hserver, err := http.NewService(hcfg, svr)
-	if err != nil {
-		panic(errors.Wrap(err, "failed to initialize HTTP server"))
-	}
-
-	err = hserver.Start()
-	if err != nil {
-		panic(errors.Wrap(err, "failed to start HTTP server"))
-	}
-
-	return hserver, nil
-}
-
 func main() {
-	ctx := context.Background()
+	var (
+		ctx                 = context.Background()
+		fatalErr            = make(chan error, 1)
+		shutdownGraceperiod = time.Minute
+		probeInterval       = time.Second * 3
+		probestatus         = proberesponder.New()
+	)
 	defer recoverer(ctx)
-	fatalErr := make(chan error, 1)
 
 	cfgs, err := configs.New()
 	if err != nil {
@@ -134,22 +73,26 @@ func main() {
 		}),
 	)
 
-	apmhandler := startAPM(ctx, cfgs)
-	pqdriver, err := postgres.NewPool(cfgs.Postgres())
+	healthResponder, err := startHealthResponder(ctx, probestatus, fatalErr)
 	if err != nil {
-		panic(errors.Wrap(err))
+		panic(err)
 	}
 
-	userPGstore := users.NewPostgresStore(pqdriver, cfgs.UserPostgresTable())
-	userSvc := users.NewService(userPGstore)
-	svrAPIs := api.NewServer(userSvc, nil)
-	hserver, gserver := startServers(svrAPIs, cfgs)
+	hserver, gserver := start(ctx, cfgs, fatalErr)
+
+	// by now all the intended servers, subscribers etc. are up and running.
+	probestatus.SetNotStarted(false)
+	probestatus.SetNotReady(false)
+	probestatus.SetNotLive(false)
 
 	defer shutdown(
+		shutdownGraceperiod,
+		probeInterval,
+		probestatus,
+		healthResponder,
 		hserver,
 		gserver,
-		apmhandler,
+		startAPM(ctx, cfgs),
 	)
-
 	exitErr = <-fatalErr
 }

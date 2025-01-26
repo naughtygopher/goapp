@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	"github.com/bnkamalesh/errors"
-	"github.com/bnkamalesh/webgo/v7"
+	"github.com/naughtygopher/errors"
+	"github.com/naughtygopher/webgo/v7"
 
 	"github.com/naughtygopher/goapp/internal/api"
 	"github.com/naughtygopher/goapp/internal/pkg/logger"
@@ -27,13 +27,6 @@ func (h *Handlers) routes() []*webgo.Route {
 			Pattern:       "",
 			Method:        http.MethodGet,
 			Handlers:      []http.HandlerFunc{errWrapper(h.HelloWorld)},
-			TrailingSlash: true,
-		},
-		{
-			Name:          "health",
-			Pattern:       "/-/health",
-			Method:        http.MethodGet,
-			Handlers:      []http.HandlerFunc{errWrapper(h.Health)},
 			TrailingSlash: true,
 		},
 		{

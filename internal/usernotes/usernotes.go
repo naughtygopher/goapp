@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bnkamalesh/errors"
+	"github.com/naughtygopher/errors"
 	"github.com/naughtygopher/goapp/internal/users"
 )
 

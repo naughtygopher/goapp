@@ -5,7 +5,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/bnkamalesh/errors"
+	"github.com/naughtygopher/errors"
 )
 
 var (

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/bnkamalesh/errors"
-	"github.com/bnkamalesh/webgo/v7"
+	"github.com/naughtygopher/errors"
+	"github.com/naughtygopher/webgo/v7"
 
 	"github.com/naughtygopher/goapp/internal/users"
 )

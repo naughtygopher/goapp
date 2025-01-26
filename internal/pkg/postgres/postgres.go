@@ -7,8 +7,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bnkamalesh/errors"
+	"github.com/exaring/otelpgx"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/naughtygopher/errors"
+
+	"github.com/naughtygopher/goapp/internal/pkg/apm"
+)
+
+const (
+	minConn           = 2
+	maxConnLifetime   = time.Minute * 5
+	healthCheckPeriod = time.Second * 30
 )
 
 // Config struct holds all the configurations required the datastore package
@@ -49,11 +59,50 @@ func (cfg *Config) ConnURL() string {
 	)
 }
 
+func pgxPoolConfig(cfg *Config) (*pgxpool.Config, error) {
+	uri := cfg.ConnURL()
+	pgxconfig, err := pgx.ParseConfig(uri)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed parsing connection string")
+	}
+
+	pgxconfig.Tracer = otelpgx.NewTracer(
+		otelpgx.WithTracerProvider(apm.Global().GetTracerProvider()),
+	)
+
+	poolconfig, err := pgxpool.ParseConfig(uri)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed parsing connection string for pool")
+	}
+
+	poolconfig.ConnConfig = pgxconfig
+
+	// poolconfig.BeforeConnect func(context.Context, *pgx.ConnConfig) error
+	// poolconfig.AfterConnect func(context.Context, *pgx.Conn) error
+	// poolconfig.BeforeAcquire func(context.Context, *pgx.Conn) bool
+	// poolconfig.AfterRelease func(*pgx.Conn) bool
+	// poolconfig.BeforeClose func(*pgx.Conn)
+
+	// MaxConnLifetime is the duration since creation after which a connection will be automatically closed.
+	poolconfig.MaxConnLifetime = maxConnLifetime
+	// MaxConnLifetimeJitter is the duration after MaxConnLifetime to randomly decide to close a connection.
+	// This helps prevent all connections from being closed at the exact same time, starving the pool.
+	poolconfig.MaxConnLifetimeJitter = time.Hour
+	// MaxConnIdleTime is the duration after which an idle connection will be automatically closed by the health check.
+	poolconfig.MaxConnIdleTime = time.Microsecond
+	// MaxConns is the maximum size of the pool. The default is the greater of 4 or runtime.NumCPU().
+	// MaxConns:
+	poolconfig.MinConns = minConn
+	// HealthCheckPeriod is the duration between checks of the health of idle connections.
+	poolconfig.HealthCheckPeriod = healthCheckPeriod
+	return poolconfig, nil
+}
+
 // NewPool returns a new instance of PGX pool
 func NewPool(cfg *Config) (*pgxpool.Pool, error) {
-	poolcfg, err := pgxpool.ParseConfig(cfg.ConnURL())
+	poolcfg, err := pgxPoolConfig(cfg)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse config")
+		return nil, err
 	}
 
 	poolcfg.MaxConnLifetime = cfg.IdleTimeout

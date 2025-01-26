@@ -6,6 +6,7 @@ import (
 
 	"github.com/naughtygopher/goapp/internal/usernotes"
 	"github.com/naughtygopher/goapp/internal/users"
+	"github.com/naughtygopher/proberesponder"
 )
 
 var (
@@ -27,20 +28,27 @@ type Subscriber interface {
 }
 
 type API struct {
-	users  *users.Users
-	unotes *usernotes.UserNotes
+	users       *users.Users
+	unotes      *usernotes.UserNotes
+	probestatus *proberesponder.ProbeResponder
 }
 
 // ServerHealth returns the health of the serever app along with other info like version
 func (a *API) ServerHealth() (map[string]any, error) {
-	return map[string]any{
+	payload := map[string]any{
 		"env":        "testing",
 		"version":    "v0.1.0",
 		"commit":     "<git commit hash>",
 		"status":     "all systems up and running",
 		"startedAt":  now.String(),
 		"releasedOn": now.String(),
-	}, nil
+	}
+
+	for key, value := range a.probestatus.HealthResponse() {
+		payload[key] = value
+	}
+
+	return payload, nil
 
 }
 

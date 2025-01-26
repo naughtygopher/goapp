@@ -6,10 +6,10 @@ import (
 	"strings"
 
 	"github.com/Masterminds/squirrel"
-	"github.com/bnkamalesh/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/naughtygopher/errors"
 )
 
 type pgstore struct {
