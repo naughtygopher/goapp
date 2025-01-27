@@ -9,6 +9,7 @@ import (
 
 	"github.com/naughtygopher/errors"
 	"github.com/naughtygopher/proberesponder"
+	"github.com/naughtygopher/proberesponder/extensions/depprober"
 	proberespHTTP "github.com/naughtygopher/proberesponder/extensions/http"
 	"github.com/naughtygopher/webgo/v7"
 
@@ -47,6 +48,12 @@ func startServers(svr api.Server, cfgs *configs.Configs, fatalErr chan<- error) 
 	}
 
 	go func() {
+		defer func() {
+			rec := recover()
+			if rec != nil {
+				fatalErr <- errors.New(fmt.Sprintf("%+v", rec))
+			}
+		}()
 		err = hserver.Start()
 		if err != nil {
 			fatalErr <- errors.Wrap(err, "failed to start HTTP server")
@@ -98,6 +105,7 @@ func startHealthResponder(ctx context.Context, ps *proberesponder.ProbeResponder
 
 func start(
 	ctx context.Context,
+	probestatus *proberesponder.ProbeResponder,
 	cfgs *configs.Configs,
 	fatalErr chan<- error,
 ) (hserver *xhttp.HTTP, gserver *grpc.GRPC) {
@@ -106,6 +114,18 @@ func start(
 	if err != nil {
 		panic(errors.Wrap(err))
 	}
+
+	depprober.Start(time.Minute, probestatus, &depprober.Probe{
+		ID:               "postgres",
+		AffectedStatuses: []proberesponder.Statuskey{proberesponder.StatusLive, proberesponder.StatusReady},
+		Checker: depprober.CheckerFunc(func(ctx context.Context) error {
+			err := pqdriver.Ping(ctx)
+			if err != nil {
+				return errors.Wrap(err, "postgres ping failed")
+			}
+			return nil
+		}),
+	})
 
 	userPGstore := users.NewPostgresStore(pqdriver, cfgs.UserPostgresTable())
 	userSvc := users.NewService(userPGstore)

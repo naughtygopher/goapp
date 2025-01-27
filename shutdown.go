@@ -70,26 +70,32 @@ func shutdownDependenciesAndServices(
 	apmIns *apm.APM,
 ) {
 	wgroup := &sync.WaitGroup{}
-	wgroup.Add(1)
-	go func() {
-		defer wgroup.Done()
-		_ = httpServer.Shutdown(ctx)
-	}()
+	if httpServer != nil {
+		wgroup.Add(1)
+		go func() {
+			defer wgroup.Done()
+			_ = httpServer.Shutdown(ctx)
+		}()
+	}
 
-	wgroup.Add(1)
-	go func() {
-		defer wgroup.Done()
-		_ = grpcServer.Shutdown(ctx)
-	}()
+	if grpcServer != nil {
+		wgroup.Add(1)
+		go func() {
+			defer wgroup.Done()
+			_ = grpcServer.Shutdown(ctx)
+		}()
+	}
 
 	// after all the APIs of the application are shutdown (e.g. HTTP, gRPC, Pubsub listener etc.)
 	// we should close connections to dependencies like database, cache etc.
 	// This should only be done after the APIs are shutdown completely
-	wgroup.Add(1)
-	go func() {
-		defer wgroup.Done()
-		_ = apmIns.Shutdown(ctx)
-	}()
+	if apmIns != nil {
+		wgroup.Add(1)
+		go func() {
+			defer wgroup.Done()
+			_ = apmIns.Shutdown(ctx)
+		}()
+	}
 
 	wgroup.Wait()
 }

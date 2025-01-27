@@ -18,7 +18,7 @@ import (
 // So that even if the main function panics we can produce required logs for troubleshooting
 var exitErr error
 
-func recoverer(ctx context.Context) {
+func recoverer() {
 	exitCode := 0
 	var exitInfo any
 	rec := recover()
@@ -39,6 +39,7 @@ func recoverer(ctx context.Context) {
 		exitCode = 0
 	}
 
+	ctx := context.Background()
 	// logging this because we have info logs saying "listening to" various port numbers
 	// based on the server type (gRPC, HTTP etc.). But it's unclear *from the logs*
 	// if the server is up and running, if it exits for any reason
@@ -52,6 +53,7 @@ func recoverer(ctx context.Context) {
 }
 
 func main() {
+	defer recoverer()
 	var (
 		ctx                 = context.Background()
 		fatalErr            = make(chan error, 1)
@@ -59,7 +61,6 @@ func main() {
 		probeInterval       = time.Second * 3
 		probestatus         = proberesponder.New()
 	)
-	defer recoverer(ctx)
 
 	cfgs, err := configs.New()
 	if err != nil {
@@ -78,7 +79,7 @@ func main() {
 		panic(err)
 	}
 
-	hserver, gserver := start(ctx, cfgs, fatalErr)
+	hserver, gserver := start(ctx, probestatus, cfgs, fatalErr)
 
 	// by now all the intended servers, subscribers etc. are up and running.
 	probestatus.SetNotStarted(false)
