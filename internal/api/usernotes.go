@@ -2,7 +2,8 @@ package api
 
 import (
 	"context"
-	"errors"
+
+	"github.com/naughtygopher/errors"
 
 	"github.com/naughtygopher/goapp/internal/usernotes"
 )

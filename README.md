@@ -259,9 +259,12 @@ You can find [Go's Open telemetry libraries here](https://opentelemetry.io/docs/
 You can clone this repository and try running the application, it'd start an HTTP server listening on port 8080 with the following routes available.
 
 - `/` GET, the root just returns "Hello world" text response
-- `/-/health` GET, returns a JSON with some basic info. I like using this path to give out the status of the app, its dependencies etc
 - `/users` POST, to create new user
 - `/users/:emailID` GET, reads a user from the database given the email id. e.g. http://localhost:8080/users/john.doe@example.com
+
+Health responder server is listening on port 2000, and has the following endpoints:
+
+- `/-/health` GET, returns a JSON with some basic info. I like using this path to give out the status of the app, its dependencies etc
 
 I've used [webgo](https://github.com/naughtygopher/webgo) to setup the HTTP server (I guess I'm biased ¯\\ (ツ) /¯ ). Though there's no compulsion that you do the same, you can pick a framework of your choice! Though stick to the framework's structure if they have any recommendations. Otherwise, goapp is the way to _go_, yay!
 
