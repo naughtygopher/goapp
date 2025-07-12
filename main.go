@@ -74,6 +74,13 @@ func main() {
 		}),
 	)
 
+	ap := startAPM(ctx, cfgs)mesg
+	if ap == nil {
+		message := "Failed to start APM!"
+		fmt.Printf(message)
+		panic(message)
+	}
+
 	healthResponder, err := startHealthResponder(ctx, probestatus, fatalErr)
 	if err != nil {
 		panic(err)
@@ -93,7 +100,7 @@ func main() {
 		healthResponder,
 		hserver,
 		gserver,
-		startAPM(ctx, cfgs),
+		ap,
 	)
 	exitErr = <-fatalErr
 }

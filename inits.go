@@ -27,12 +27,13 @@ var now = time.Now()
 
 func startAPM(ctx context.Context, cfg *configs.Configs) *apm.APM {
 	ap, err := apm.New(ctx, &apm.Options{
-		Debug:            cfg.Environment == configs.EnvLocal,
-		Environment:      cfg.Environment.String(),
-		ServiceName:      cfg.AppName,
-		ServiceVersion:   cfg.AppVersion,
-		TracesSampleRate: 50.00,
-		UseStdOut:        cfg.Environment == configs.EnvLocal,
+		Debug:                cfg.Environment == configs.EnvLocal,
+		Environment:          cfg.Environment.String(),
+		ServiceName:          cfg.AppName,
+		ServiceVersion:       cfg.AppVersion,
+		PrometheusScrapePort: 9090,
+		TracesSampleRate:     50.00,
+		UseStdOut:            cfg.Environment == configs.EnvLocal,
 	})
 	if err != nil {
 		panic(errors.Wrap(err, "failed to start APM"))

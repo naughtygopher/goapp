@@ -20,7 +20,8 @@ func NotifyErrorOnQuit(errs chan<- error, otherSignals ...syscall.Signal) {
 
 	for signalType := range interrupt {
 		switch signalType {
-		case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGTSTP:
+		// syscall.SIGTSTP not supported on Windows.
+		case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT/*, syscall.SIGTSTP*/:
 			errs <- errors.Wrapf(ErrSigQuit, "%v", signalType)
 			return
 		}
