@@ -28,20 +28,10 @@ func prometheusScraper(opts *Options) {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	// logger.Info(
-	// 	"[otel/http] starting prometheus scrape endpoint",
-	// 	zap.String(
-	// 		"addr",
-	// 		fmt.Sprintf("localhost:%d/-/metrics", opts.PrometheusScrapePort),
-	// 	),
-	// )
+	fmt.Printf("[otel/http] starting prometheus metrics on :%d/-/metrics", opts.PrometheusScrapePort)
 	err := server.ListenAndServe()
 	if err != nil {
-		// logger.Error(
-		// 	"[otel/http] failed to serve metrics at:",
-		// 	zap.Error(err),
-		// 	zap.Uint16("port", opts.PrometheusScrapePort),
-		// )
-		return
+		fmt.Printf("[otel/http] failed to start prometheus metrics on :%d/-/metrics ; %+v", opts.PrometheusScrapePort, err)
+		panic(err)
 	}
 }

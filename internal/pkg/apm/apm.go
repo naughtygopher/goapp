@@ -70,7 +70,7 @@ func New(ctx context.Context, opts *Options) (*APM, error) {
 	s.meterProvider = mProvider
 	SetGlobal(s)
 
-	return s, nil
+	return Global(), nil
 }
 
 // Shutdown gracefully switch off apm, flushing any data it have
@@ -140,9 +140,9 @@ func SetGlobal(apm *APM) {
 // Global gets global apm instance
 func Global() *APM {
 	if global == nil {
-		apm, _ := New(context.Background(), &Options{UseStdOut: false})
-		global = apm
-		return apm
+		message := "Attempt to use APM before it's been initialised."
+		fmt.Printf(message)
+		panic(message)
 	}
 	return global
 }
@@ -187,6 +187,10 @@ func newTracer(ctx context.Context, opts *Options) (trace.TracerProvider, *Trace
 
 	if opts.UseStdOut {
 		exporter, err = stdouttrace.New()
+	} else if opts.CollectorURL == "" {
+		fmt.Printf("Using no-op tracer as CollectorURL is not set.")
+		s.tracerProvider = nil
+		s.appTracer = nil
 	} else if httpCollector {
 		exporter, err = otlptracehttp.New(
 			ctx,
