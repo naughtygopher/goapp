@@ -3,11 +3,11 @@ package apm
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/naughtygopher/errors"
+	"github.com/naughtygopher/goapp/internal/pkg/logger"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
@@ -141,9 +141,7 @@ func SetGlobal(apm *APM) {
 // Global gets global apm instance
 func Global() *APM {
 	if global == nil {
-		message := "Attempt to use APM before it's been initialised."
-		fmt.Printf(message)
-		panic(message)
+		logger.Error(context.Background(), "APM access attempt before initialisation is a bug")
 	}
 	return global
 }
