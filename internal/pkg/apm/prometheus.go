@@ -33,6 +33,6 @@ func prometheusScraper(opts *Options) {
 	logger.Info(context.Background(), fmt.Sprintf("[otel/http] starting prometheus metrics on :%d/-/metrics", opts.PrometheusScrapePort))
 	err := server.ListenAndServe()
 	if err != nil {
-    logger.Error(context.Background(), fmt.Sprintf("[otel/http] failed to start prometheus metrics on :%d/-/metrics ; %+v", opts.PrometheusScrapePort, err))
+		logger.Error(context.Background(), fmt.Sprintf("[otel/http] failed to start prometheus metrics on :%d/-/metrics ; %+v", opts.PrometheusScrapePort, err))
 	}
 }
