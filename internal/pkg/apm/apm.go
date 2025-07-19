@@ -189,7 +189,7 @@ func newTracer(ctx context.Context, opts *Options) (trace.TracerProvider, *Trace
 	if opts.UseStdOut {
 		exporter, err = stdouttrace.New()
 	} else if opts.CollectorURL == "" {
-		fmt.Printf("Using no-op tracer as CollectorURL is not set.")
+		// Using no-op tracer as CollectorURL was not set.
 		return nil, nil, nil
 	} else if httpCollector {
 		exporter, err = otlptracehttp.New(
