@@ -24,14 +24,14 @@ func prometheusScraper(opts *Options) {
 	mux.Handle("/-/metrics", promhttp.Handler())
 	server := &http.Server{
 		Handler:           mux,
-		Addr:              fmt.Sprintf("%d", opts.PrometheusScrapePort),
+		Addr:              fmt.Sprintf(":%d", opts.PrometheusScrapePort),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	fmt.Printf("[otel/http] starting prometheus metrics on :%d/-/metrics", opts.PrometheusScrapePort)
+	fmt.Printf("[otel/http] starting prometheus metrics on :%d/-/metrics\n", opts.PrometheusScrapePort)
 	err := server.ListenAndServe()
 	if err != nil {
-		fmt.Printf("[otel/http] failed to start prometheus metrics on :%d/-/metrics ; %+v", opts.PrometheusScrapePort, err)
-		panic(err)
+		fmt.Printf("[otel/http] failed to start prometheus metrics on :%d/-/metrics ; %+v\n", opts.PrometheusScrapePort, err)
+// 		panic(err)
 	}
 }

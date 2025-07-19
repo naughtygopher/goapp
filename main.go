@@ -74,7 +74,7 @@ func main() {
 		}),
 	)
 
-	ap := startAPM(ctx, cfgs)mesg
+	ap := startAPM(ctx, cfgs)
 	if ap == nil {
 		message := "Failed to start APM!"
 		fmt.Printf(message)

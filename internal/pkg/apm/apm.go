@@ -3,6 +3,7 @@ package apm
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -189,8 +190,7 @@ func newTracer(ctx context.Context, opts *Options) (trace.TracerProvider, *Trace
 		exporter, err = stdouttrace.New()
 	} else if opts.CollectorURL == "" {
 		fmt.Printf("Using no-op tracer as CollectorURL is not set.")
-		s.tracerProvider = nil
-		s.appTracer = nil
+		return nil, nil, nil
 	} else if httpCollector {
 		exporter, err = otlptracehttp.New(
 			ctx,
