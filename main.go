@@ -75,11 +75,6 @@ func main() {
 	)
 
 	ap := startAPM(ctx, cfgs)
-	if ap == nil {
-		message := "Failed to start APM!"
-		fmt.Printf(message)
-		panic(message)
-	}
 
 	healthResponder, err := startHealthResponder(ctx, probestatus, fatalErr)
 	if err != nil {
