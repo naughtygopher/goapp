@@ -74,7 +74,7 @@ func main() {
 		}),
 	)
 
-  // This needs to remain after log initialisation and before server initialisation.
+	// This needs to remain after log initialisation and before server initialisation.
 	ap := startAPM(ctx, cfgs)
 
 	healthResponder, err := startHealthResponder(ctx, probestatus, fatalErr)
