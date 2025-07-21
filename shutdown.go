@@ -38,7 +38,9 @@ func shutdown(
 		probes as much context as possible. Esepcially during the graceful shutdown period.
 		Hence it is recommended to setup an independent server for health checks alone.
 	*/
-	defer healthResp.Shutdown(ctx)
+	defer func() {
+		_ = healthResp.Shutdown(ctx)
+	}()
 
 	/*
 		When a server begins its shutdown process, it first signals Kubernetes (or any other prober)
