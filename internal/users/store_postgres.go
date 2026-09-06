@@ -5,8 +5,9 @@ import (
 	"database/sql"
 	"strings"
 
+	"uuid"
+
 	"github.com/Masterminds/squirrel"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/naughtygopher/errors"
@@ -35,7 +36,7 @@ func (ps *pgstore) GetUserByEmail(ctx context.Context, email string) (*User, err
 	}
 
 	user := new(User)
-	uid := new(uuid.NullUUID)
+	uid := new(uuid.UUID)
 	address := new(sql.NullString)
 	phone := new(sql.NullString)
 
@@ -47,7 +48,7 @@ func (ps *pgstore) GetUserByEmail(ctx context.Context, email string) (*User, err
 		}
 		return nil, errors.Wrap(err, "failed getting user info")
 	}
-	user.ID = uid.UUID.String()
+	user.ID = uid.String()
 	user.ContactAddress = address.String
 	user.Phone = phone.String
 
@@ -134,7 +135,7 @@ func (ps *pgstore) BulkSaveUser(ctx context.Context, users []User) error {
 }
 
 func (ps *pgstore) newUserID() string {
-	return uuid.NewString()
+	return uuid.NewV7().String()
 }
 
 func NewPostgresStore(pqdriver *pgxpool.Pool, tablename string) *pgstore {
