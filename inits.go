@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/naughtygopher/errors"
@@ -77,7 +78,11 @@ func healthResponseHandler(ps *proberesponder.ProbeResponder) http.HandlerFunc {
 
 		for key, value := range ps.HealthResponse() {
 			payload[key] = value
+			if strings.Contains(value, proberesponder.HealthNotOK.String()) {
+				payload["status"] = "degraded"
+			}
 		}
+
 		b, _ := json.Marshal(payload)
 		w.Header().Add(webgo.HeaderContentType, webgo.JSONContentType)
 		_, _ = w.Write(b)

@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: "postgres:17"
+    image: "postgres:18"
     environment:
       POSTGRES_PASSWORD: gauserpassword
       POSTGRES_USER: gauser
@@ -11,7 +11,7 @@ services:
       - goapp_network
 
   goapp:
-    image: golang:1.23
+    image: golang:1.27
     volumes:
       - ${PWD}/../:/app
     working_dir: /app
@@ -31,6 +31,9 @@ services:
       - postgres
     networks:
       - goapp_network
+    dns:
+      - "1.1.1.1"
+      - "8.8.8.8"
 
 networks:
   goapp_network:
